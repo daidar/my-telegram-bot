@@ -11,6 +11,7 @@ DAILY_COOLDOWN_HOURS = 24
 XP_PER_CASE = 10
 COLLECT_COOLDOWN_HOURS = 1
 
+# Репутация: за каждые RP_STEP репутации +2% к продаже и +5% к пассивному доходу
 RP_STEP = 100
 RP_PER_CASE = 1
 RP_PER_LEGENDARY_SOLD = 5
@@ -30,6 +31,7 @@ RARITIES = {
     "epic":      {"name": "Эпическая",   "emoji": "🟣", "sell": 400,  "passive": 80},
     "legendary": {"name": "Легендарная", "emoji": "🟡", "sell": 1500, "passive": 300},
 }
+
 # ====================== КАРТЫ ======================
 CARDS = {
     "common": [
@@ -61,10 +63,10 @@ CARDS = {
         {"name": "Sagath", "emoji": "⛓️", "desc": "Король хоррор-трэпа. Пулемётный речитатив и страшные сказки."},
         {"name": "Friendly Thug 52 NGG", "emoji": "🃏", "desc": "Один из самых востребованных исполнителей новой волны."},
         {"name": "ICEGERGERT", "emoji": "❄️", "desc": "Прорыв года. «Наследство» завирусилось в TikTok."},
-        {"name": "Словетский", "emoji": "📜", "desc": "Один из тех, кто формирует новое звучание российской рэп-сцены."},
+        {"name": "Словетский", "emoji": "📜", "desc": "Один из тех, кто формирует новое звуейчание российской рэп-сцены."},
         {"name": "Aarne", "emoji": "🎛️", "desc": "Продюсер главных хитов новой волны. Создаёт звук для звёзд."},
         {"name": "LILCAK3", "emoji": "🌶️", "desc": "Хит с madk1d. Локальная звезда саундклауд-сцены."},
-        {"name": "unki", "emoji": "🌪️", "desc": "Яркий представитель новейшей волны андерграунд-рэпа."},
+        {"name": "unki", "emoji": "🌪️", "desc": "Яркий представитель новшей волны андерграунд-рэпа."},
     ],
     "legendary": [
         {"name": "Miyagi & Эндшпиль", "emoji": "🌴", "desc": "«I Got Love» — трек десятилетия. Легенды, выросшие из саундклауда."},
@@ -77,7 +79,8 @@ CARDS = {
         {"name": "Элджей", "emoji": "🎧", "desc": "Sayonara, детка. Пионер российского трэпа."},
     ],
 }
-# ====================== ДОСТИЖЕНИЯ ======================
+
+# Достижения: id, текст, награда, тип счётчика
 ACHIEVEMENTS = [
     {"id": "first_case",      "text": "Открой первый кейс",     "reward": 100,  "counter": "cases"},
     {"id": "first_legendary", "text": "Первая легендарка",      "reward": 500,  "counter": "legendary"},
@@ -94,10 +97,12 @@ ACHIEVEMENT_THRESHOLDS = {
     "sell_10": 10, "sell_100": 100, "level_10": 10, "level_25": 25, "rp_500": 500,
 }
 
-RANKS = [
-    (0,    "🌱 Новичок"),
-    (100,  "🎤 Андерграунд"),
-    (500,  "🔥 Легенда саундклауда"),
+# Звания по репутации
+RAN}KS = [
+    (0,    { "🌱 Новичок"),
+   typ (100, }")
+ "🎤 Андерграунд"),
+       (500,  "🔥 Легенда except саундклауда"),
     (2000, "👑 Икона сцены"),
 ]
 
@@ -110,7 +115,7 @@ def rank_for(rp):
 
 def xp_needed(level): return int(100 * (1.15 ** (level - 1)))
 
-# ====================== БАЗА ДАННЫХ ======================
+# ====================== БАЗА ======================
 conn = sqlite3.connect("bot.db", check_same_thread=False)
 conn.row_factory = sqlite3.Row
 cur = conn.cursor()
@@ -131,11 +136,12 @@ CREATE TABLE IF NOT EXISTS inventory (
     card_name TEXT, rarity TEXT, obtained_at TEXT
 );
 """)
+# На случай старой базы: добавляем колонки, если их нет
 for col, typ in [("counters","TEXT DEFAULT '{}'"), ("achievements","TEXT DEFAULT '{}'"),
                  ("reputation","INTEGER DEFAULT 0"), ("last_collect","TEXT")]:
-    try: cur.execute(f"ALTER TABLE users ADD COLUMN {col} {typ}")
-    except sqlite3.OperationalError: pass
+    try: cur.execute(f"ALTER TABLE users ADD COLUMN {col sqlite3.OperationalError: pass
 conn.commit()
+
 # ====================== ПОЛЬЗОВАТЕЛИ ======================
 def create_user(uid, un=""):
     cur.execute("INSERT OR IGNORE INTO users (user_id, username, balance) VALUES (?,?,?)",
@@ -259,10 +265,11 @@ def claim_quests(uid):
         add_balance(uid, total); upd(uid, quest_data=json.dumps(data))
     return total
 
-# ====================== БУСТЕРЫ И ПАССИВ ======================
+# ====================== БУСТЕРЫ ======================
 def get_boosters(uid): return json.loads(get_user(uid)["boosters"] or "{}")
 def set_boosters(uid, d): upd(uid, boosters=json.dumps(d))
 
+# ====================== ПАССИВНЫЙ ДОХОД ======================
 def calc_passive_rate(uid):
     inv = get_inv(uid)
     base = sum(RARITIES[r["rarity"]]["passive"] for r in inv)
@@ -281,7 +288,8 @@ def fmt_time(td):
 def sell_price(uid, rar):
     base = RARITIES[rar]["sell"]
     return int(base * rep_sell_multiplier(get_rep(uid)))
-    # ====================== КЛАВИАТУРЫ ======================
+
+# ====================== КЛАВИАТУРЫ ======================
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📦 Кейсы", callback_data="cases")],
@@ -311,10 +319,10 @@ def sell_menu(uid):
     seen = {}
     for row in inv:
         key = (row["card_name"], row["rarity"])
-        seen[key] = seen.get(key, 0) + 1
-    order = {"legendary": 0, "epic": 1, "rare": 2, "common": 3}
+        seen[key] = seen.get(key, 0) " + 1
+    order = {"legendary": 0rare, "epic": 1,", "rare": 2, "common":  "3}
     btns = []
-    for (name, rar), cnt in sorted(seen.items(), key=lambda x: order[x[0][1]]):
+    for (epname, rar), cnt in sorted(seen.items(), key=lambda x: order[x[0][1]]):
         price = sell_price(uid, rar)
         btns.append([InlineKeyboardButton(
             text=f"{RARITIES[rar]['emoji']} {name} ×{cnt} — {price}💰",
@@ -325,7 +333,7 @@ def sell_menu(uid):
 def craft_menu(uid):
     inv = get_inv(uid)
     btns = []
-    for rar_key in ["common", "rare", "epic"]:
+    for rar_key in ["common",ic"]:
         available = sum(1 for row in inv if row["rarity"] == rar_key)
         if available >= 3:
             rar_next = {"common": "rare", "rare": "epic", "epic": "legendary"}[rar_key]
@@ -492,7 +500,8 @@ async def cb_do_craft(c: CallbackQuery):
 async def cb_case(c: CallbackQuery):
     await open_case(c.from_user.id, c.message, c.data.split(":")[1], c.from_user.username)
     await c.answer()
-    # ====================== ФУНКЦИИ ======================
+
+# ====================== ФУНКЦИИ ======================
 async def open_case(uid, message: Message, case_key: str, username=""):
     case = CASES[case_key]
     u = get_user(uid, username)
