@@ -572,8 +572,7 @@ def collection_menu(uid):
     for (name, rar), cnt in sorted(grouped.items(), key=lambda x: order[x[0][1]]):
         btns.append([InlineKeyboardButton(text=f"{RARITIES[rar]['emoji']} {name} ×{cnt}",
                                           callback_data=f"cardinfo:{name}")])
-    btns.append([InlineKeyboardButton"]
-(text="⬅️ Назад", callback_data="back   ")])
+    btns.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
     return Inline forKeyboardMarkup(inline_keyboard= (btns)
 
 defname craft_menu(uid):
