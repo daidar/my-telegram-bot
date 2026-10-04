@@ -684,25 +684,35 @@ async def cmd_stats(m: Message): await show_stats(m.from_user.id, m)
 @dp.message(Command("history"))
 async def cmd_history(m: Message): await show_history(m.from_user.id, m)
 
-@dp.message(Command("find"))
+@@dp.message(Command("find"))
 async def cmd_find(m: Message):
     uid = m.from_user.id
     get_user(uid, m.from_user.username)
-    args = m.text.split(maxsplit=1)[1:]
-    if not args:
-        await m.answer("Использование: /find имя"); return
-    q = args[0].lower()
+    parts = m.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await m.answer("Использование: /find имя")
+        return
+    q = parts[1].lower()
     inv = get_inv(uid)
-    found = [r for r in inv if q in r["card_name"].lower()]
+    found = []
+    for r in inv:
+        if q in r["card_name"].lower():
+            found.append(r)
     if not found:
-        await m.answer("🔍 Не найдено"); return
+        await m.answer("Не найдено")
+        return
     grouped = {}
     for r in found:
         key = (r["card_name"], r["rarity"])
         grouped[key] = grouped.get(key, 0) + 1
-    lines = ["🔍 <b>Найдено:</b>, rar), cnt in grouped.items():
-        lines.append(f"{RARITIES[rar]['emoji']} {name} ×{cnt}")
-    await m.answer("\n".join(lines), parse_mode="HTML")
+    lines = []
+    lines.append("Найдено:")
+    for key, cnt in grouped.items():
+        name = key[0]
+        rar = key[1]
+        e = RARITIES[rar]["emoji"]
+        lines.append(e + " " + name + " x" + str(cnt))
+    await m.answer("\n".join(lines))
 
 @dp.message(Command("cancel"))
 async def cmd_cancel(m: Message):
