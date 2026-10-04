@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 # ====================== НАСТРОЙКИ ======================
-BOT_TOKEN = "ВСТАВЬ_СВОЙ_ТОКЕН"
+BOT_TOKEN = "8918809137:AAEPzaMMiBwL8rHSGkHJsiIfwAmnKjF56ds"
 START_BALANCE = 1000
 DAILY_COOLDOWN_HOURS = 24
 XP_PER_CASE = 10
