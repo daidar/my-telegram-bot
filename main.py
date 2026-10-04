@@ -1,4 +1,7 @@
-import asyncio, random, sqlite3, json
+import asyncio
+import random
+import sqlite3
+import json
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
@@ -7,184 +10,200 @@ from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton
 )
 
-# ====================== НАСТРОЙКИ ======================
 BOT_TOKEN = "8918809137:AAEPzaMMiBwL8rHSGkHJsiIfwAmnKjF56ds"
-OWNER_ID = 0  # ваш Telegram ID (узнать у @userinfobot)
+OWNER_ID = 0
 START_BALANCE = 1000
-DAILY_COOLDOWN_HOURS = 24
+DAILY_CD = 24
 XP_PER_CASE = 10
-COLLECT_COOLDOWN_HOURS = 1
+COLLECT_CD = 1
 RP_STEP = 100
-RP_PER_CASE = 1
-RP_PER_LEGENDARY_SOLD = 5
-DUEL_COOLDOWN_SEC = 300
-MARKET_COMMISSION = 0.05
-MARKET_LOT_HOURS = 24
+RP_CASE = 1
+RP_LEG = 5
+DUEL_CD = 300
+COMMISSION = 0.05
+LOT_HOURS = 24
 MIN_BET = 10
 
 CASES = {
-    "basic":   {"name": "Обычный", "emoji": "📦", "price": 100,
-                "weights": {"common": 60, "rare": 25, "epic": 12, "legendary": 3}},
-    "premium": {"name": "Премиум", "emoji": "🎁", "price": 500,
-                "weights": {"common": 25, "rare": 40, "epic": 25, "legendary": 10}},
-    "vip":     {"name": "VIP",     "emoji": "💎", "price": 2000,
-                "weights": {"common": 0,  "rare": 30, "epic": 45, "legendary": 25}},
+    "basic": {
+        "name": "Обычный", "emoji": "📦", "price": 100,
+        "w": {"common": 60, "rare": 25, "epic": 12, "legendary": 3},
+    },
+    "premium": {
+        "name": "Премиум", "emoji": "🎁", "price": 500,
+        "w": {"common": 25, "rare": 40, "epic": 25, "legendary": 10},
+    },
+    "vip": {
+        "name": "VIP", "emoji": "💎", "price": 2000,
+        "w": {"common": 0, "rare": 30, "epic": 45, "legendary": 25},
+    },
 }
 
 RARITIES = {
-    "common":    {"name": "Обычная",     "emoji": "⚪️", "sell": 30,   "passive": 5},
-    "rare":      {"name": "Редкая",      "emoji": "🔵", "sell": 120,  "passive": 20},
-    "epic":      {"name": "Эпическая",   "emoji": "🟣", "sell": 400,  "passive": 80},
-    "legendary": {"name": "Легендарная", "emoji": "🟡", "sell": 1500, "passive": 300},
+    "common": {"name": "Обычная", "e": "⚪", "sell": 30, "pas": 5},
+    "rare": {"name": "Редкая", "e": "🔵", "sell": 120, "pas": 20},
+    "epic": {"name": "Эпическая", "e": "🟣", "sell": 400, "pas": 80},
+    "legendary": {"name": "Легендарная", "e": "🟡", "sell": 1500, "pas": 300},
 }
 
 CARDS = {
     "common": [
-        {"name": "mumble", "emoji": "🗣️", "desc": "Трэп и клауд на стыке."},
-        {"name": "Размаха", "emoji": "💥", "desc": "Девушка в новом олдскуле."},
-        {"name": "Tuborosho", "emoji": "🥁", "desc": "Саундклауд с пацанским вайбом."},
-        {"name": "mapt0v", "emoji": "🗺️", "desc": "Меланхоличный рэп."},
-        {"name": "dope17", "emoji": "💊", "desc": "Воронежский фрешмен."},
-        {"name": "KRISTIEE", "emoji": "✨", "desc": "17-летний фрешмен из Москвы."},
-        {"name": "Locked23", "emoji": "🔒", "desc": "Автор хита «Татухи»."},
-        {"name": "юпи", "emoji": "🎸", "desc": "Поп-панк и гранж."},
-        {"name": "euro91", "emoji": "🚗", "desc": "Участник объединения Bouquet."},
-        {"name": "fleurnothappy", "emoji": "🥀", "desc": "Меланхоличная новая волна."},
+        ("mumble", "🗣", "Трэп и клауд на стыке."),
+        ("Размаха", "💥", "Девушка в новом олдскуле."),
+        ("Tuborosho", "🥁", "Саундклауд с пацанским вайбом."),
+        ("mapt0v", "🗺", "Меланхоличный рэп."),
+        ("dope17", "💊", "Воронежский фрешмен."),
+        ("KRISTIEE", "✨", "17-летний фрешмен из Москвы."),
+        ("Locked23", "🔒", "Автор хита Татухи."),
+        ("юпи", "🎸", "Поп-панк и гранж."),
+        ("euro91", "🚗", "Участник Bouquet."),
+        ("fleurnothappy", "🥀", "Меланхоличная новая волна."),
     ],
     "rare": [
-        {"name": "Тёмный Принц", "emoji": "🦇", "desc": "Самый загадочный саундклауд-фрешмен."},
-        {"name": "whitek3d", "emoji": "💎", "desc": "15+ млн стримов."},
-        {"name": "Fortuna 812", "emoji": "🏴", "desc": "Автор хита ParisLove."},
-        {"name": "madk1d", "emoji": "🚀", "desc": "Один из лидеров новой волны."},
-        {"name": "Урал Гайсин", "emoji": "🎹", "desc": "Продюсер из Уфы."},
-        {"name": "паранойя", "emoji": "🌀", "desc": "Мультижанровый исполнитель."},
-        {"name": "Anonymous Ember", "emoji": "👤", "desc": "Тайный участник Russia Be Mad."},
-        {"name": "tewiq", "emoji": "🎯", "desc": "Автор хита распять."},
-        {"name": "королевский XVII", "emoji": "⚔️", "desc": "Мрачный трэп из Волгограда."},
-        {"name": "KUDOKUSHI", "emoji": "🏯", "desc": "Легенда русского саундклауда."},
+        ("Тёмный Принц", "🦇", "Самый загадочный фрешмен."),
+        ("whitek3d", "💎", "15+ млн стримов."),
+        ("Fortuna 812", "🏴", "Автор хита ParisLove."),
+        ("madk1d", "🚀", "Лидер новой волны."),
+        ("Урал Гайсин", "🎹", "Продюсер из Уфы."),
+        ("паранойя", "🌀", "Мультижанровый исполнитель."),
+        ("Anonymous Ember", "👤", "Тайный участник Russia Be Mad."),
+        ("tewiq", "🎯", "Автор хита распять."),
+        ("королевский XVII", "⚔", "Мрачный трэп из Волгограда."),
+        ("KUDOKUSHI", "🏯", "Легенда саундклауда."),
     ],
     "epic": [
-        {"name": "CODE80", "emoji": "👑", "desc": "Главный герой касты."},
-        {"name": "Sagath", "emoji": "⛓️", "desc": "Король хоррор-трэпа."},
-        {"name": "Friendly Thug 52 NGG", "emoji": "🃏", "desc": "Топ новой волны."},
-        {"name": "ICEGERGERT", "emoji": "❄️", "desc": "Прорыв года."},
-        {"name": "Словетский", "emoji": "📜", "desc": "Формирует новое звучание."},
-        {"name": "Aarne", "emoji": "🎛️", "desc": "Продюсер главных хитов."},
-        {"name": "LILCAK3", "emoji": "🌶️", "desc": "Локальная звезда."},
-        {"name": "unki", "emoji": "🌪️", "desc": "Новейшая волна андерграунда."},
+        ("CODE80", "👑", "Главный герой касты."),
+        ("Sagath", "⛓", "Король хоррор-трэпа."),
+        ("Friendly Thug 52 NGG", "🃏", "Топ новой волны."),
+        ("ICEGERGERT", "❄", "Прорыв года."),
+        ("Словетский", "📜", "Формирует новое звучание."),
+        ("Aarne", "🎛", "Продюсер главных хитов."),
+        ("LILCAK3", "🌶", "Локальная звезда."),
+        ("unki", "🌪", "Новейшая волна андерграунда."),
     ],
     "legendary": [
-        {"name": "Miyagi", "emoji": "🌴", "desc": "I Got Love — трек десятилетия."},
-        {"name": "Баста", "emoji": "🎩", "desc": "Легенда сцены."},
-        {"name": "Oxxxymiron", "emoji": "🏛️", "desc": "Горгород."},
-        {"name": "Скриптонит", "emoji": "🦅", "desc": "Дом с нормальными явлениями."},
-        {"name": "Хаски", "emoji": "🐺", "desc": "Тёмный рэп."},
-        {"name": "Noize MC", "emoji": "🎸", "desc": "Рэп с гитарой."},
-        {"name": "FACE", "emoji": "🥀", "desc": "Грустный трэп."},
-        {"name": "Элджей", "emoji": "🎧", "desc": "Пионер российского трэпа."},
+        ("Miyagi", "🌴", "I Got Love - трек десятилетия."),
+        ("Баста", "🎩", "Легенда сцены."),
+        ("Oxxxymiron", "🏛", "Горгород."),
+        ("Скриптонит", "🦅", "Дом с нормальными явлениями."),
+        ("Хаски", "🐺", "Тёмный рэп."),
+        ("Noize MC", "🎸", "Рэп с гитарой."),
+        ("FACE", "🥀", "Грустный трэп."),
+        ("Элджей", "🎧", "Пионер трэпа."),
     ],
 }
 
 COLLECTIONS = {
-    "common":    {"name": "Новички",     "reward": 1000},
-    "rare":      {"name": "Андерграунд", "reward": 3000},
-    "epic":      {"name": "Элита",       "reward": 10000},
-    "legendary": {"name": "Легенды",     "reward": 50000},
+    "common": {"name": "Новички", "reward": 1000},
+    "rare": {"name": "Андерграунд", "reward": 3000},
+    "epic": {"name": "Элита", "reward": 10000},
+    "legendary": {"name": "Легенды", "reward": 50000},
 }
 
 ACHIEVEMENTS = [
-    {"id": "first_case",      "text": "Открой первый кейс",     "reward": 100,  "counter": "cases"},
-    {"id": "first_legendary", "text": "Первая легендарка",      "reward": 500,  "counter": "legendary"},
-    {"id": "cases_10",        "text": "Открой 10 кейсов",       "reward": 300,  "counter": "cases"},
-    {"id": "cases_100",       "text": "Открой 100 кейсов",      "reward": 2000, "counter": "cases"},
-    {"id": "sell_10",         "text": "Продай 10 карт",         "reward": 200,  "counter": "sold"},
-    {"id": "sell_100",        "text": "Продай 100 карт",        "reward": 2000, "counter": "sold"},
-    {"id": "level_10",        "text": "Достигни 10 уровня",     "reward": 500,  "counter": "level"},
-    {"id": "level_25",        "text": "Достигни 25 уровня",     "reward": 2000, "counter": "level"},
-    {"id": "rp_500",          "text": "Набрать 500 репутации",  "reward": 1500, "counter": "reputation"},
-    {"id": "duel_win_10",     "text": "Выиграй 10 дуэлей",      "reward": 1000, "counter": "duel_wins"},
-    {"id": "market_sell_5",   "text": "Продай 5 карт на рынке", "reward": 500,  "counter": "market_sold"},
+    ("first_case", "Открой первый кейс", 100, "cases", 1),
+    ("first_leg", "Первая легендарка", 500, "legendary", 1),
+    ("cases_10", "Открой 10 кейсов", 300, "cases", 10),
+    ("cases_100", "Открой 100 кейсов", 2000, "cases", 100),
+    ("sell_10", "Продай 10 карт", 200, "sold", 10),
+    ("sell_100", "Продай 100 карт", 2000, "sold", 100),
+    ("level_10", "Достигни 10 уровня", 500, "level", 10),
+    ("level_25", "Достигни 25 уровня", 2000, "level", 25),
+    ("rp_500", "Набрать 500 репутации", 1500, "reputation", 500),
+    ("duel_10", "Выиграй 10 дуэлей", 1000, "duel_wins", 10),
+    ("market_5", "Продай 5 карт на рынке", 500, "market_sold", 5),
 ]
-ACHIEVEMENT_THRESHOLDS = {
-    "first_case": 1, "first_legendary": 1, "cases_10": 10, "cases_100": 100,
-    "sell_10": 10, "sell_100": 100, "level_10": 10, "level_25": 25, "rp_500": 500,
-    "duel_win_10": 10, "market_sell_5": 5,
-}
 
-RANKS = [
-    (0,    "🌱 Новичок"),
-    (100,  "🎤 Андерграунд"),
-    (500,  "🔥 Легенда саундклауда"),
-    (2000, "👑 Икона сцены"),
-]
+RANKS = [(0, "Новичок"), (100, "Андерграунд"),
+         (500, "Легенда саундклауда"), (2000, "Икона сцены")]
 
 def rank_for(rp):
     r = RANKS[0][1]
     for t, n in RANKS:
-        if rp >= t: r = n
+        if rp >= t:
+            r = n
     return r
 
-def xp_needed(level):
-    return int(100 * (1.15 ** (level - 1)))
+def xp_need(lv):
+    return int(100 * (1.15 ** (lv - 1)))
 
-# ====================== БАЗА ======================
 conn = sqlite3.connect("bot.db", check_same_thread=False)
 conn.row_factory = sqlite3.Row
 cur = conn.cursor()
 cur.executescript("""
 CREATE TABLE IF NOT EXISTS users (
-    user_id INTEGER PRIMARY KEY, username TEXT,
-    balance INTEGER DEFAULT 0, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 1,
-    last_daily TEXT, daily_streak INTEGER DEFAULT 0,
-    quest_data TEXT DEFAULT '{}', quest_date TEXT,
-    boosters TEXT DEFAULT '{}',
-    counters TEXT DEFAULT '{}',
-    achievements TEXT DEFAULT '{}',
-    reputation INTEGER DEFAULT 0,
-    last_collect TEXT,
-    last_duel TEXT
+  user_id INTEGER PRIMARY KEY, username TEXT,
+  balance INTEGER DEFAULT 0, xp INTEGER DEFAULT 0, level INTEGER DEFAULT 1,
+  last_daily TEXT, daily_streak INTEGER DEFAULT 0,
+  quest_data TEXT DEFAULT '{}', quest_date TEXT,
+  boosters TEXT DEFAULT '{}', counters TEXT DEFAULT '{}',
+  achievements TEXT DEFAULT '{}', reputation INTEGER DEFAULT 0,
+  last_collect TEXT, last_duel TEXT
 );
 CREATE TABLE IF NOT EXISTS inventory (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER,
-    card_name TEXT, rarity TEXT, obtained_at TEXT
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER,
+  card_name TEXT, rarity TEXT, obtained_at TEXT
 );
 CREATE TABLE IF NOT EXISTS market (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    seller_id INTEGER, seller_name TEXT,
-    card_name TEXT, rarity TEXT, price INTEGER,
-    created_at TEXT
+  id INTEGER PRIMARY KEY AUTOINCREMENT, seller_id INTEGER,
+  seller_name TEXT, card_name TEXT, rarity TEXT,
+  price INTEGER, created_at TEXT
 );
 CREATE TABLE IF NOT EXISTS promo (
-    code TEXT PRIMARY KEY, reward INTEGER,
-    max_uses INTEGER DEFAULT 1, uses INTEGER DEFAULT 0
+  code TEXT PRIMARY KEY, reward INTEGER,
+  max_uses INTEGER DEFAULT 1, uses INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS promo_used (
-    user_id INTEGER, code TEXT, PRIMARY KEY (user_id, code)
+  user_id INTEGER, code TEXT, PRIMARY KEY (user_id, code)
 );
 CREATE TABLE IF NOT EXISTS history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER, card_name TEXT, rarity TEXT,
-    source TEXT, created_at TEXT
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER,
+  card_name TEXT, rarity TEXT, source TEXT, created_at TEXT
 );
-CREATE TABLE IF NOT EXISTS events (
-    name TEXT PRIMARY KEY, expires TEXT
-);
-CREATE TABLE IF NOT EXISTS bans (
-    user_id INTEGER PRIMARY KEY, until TEXT
-);
+CREATE TABLE IF NOT EXISTS events (name TEXT PRIMARY KEY, expires TEXT);
+CREATE TABLE IF NOT EXISTS bans (user_id INTEGER PRIMARY KEY, until TEXT);
 """)
-for col, typ in [("counters", "TEXT DEFAULT '{}'"), ("achievements", "TEXT DEFAULT '{}'"),
-                 ("reputation", "INTEGER DEFAULT 0"), ("last_collect", "TEXT"),
+for col, typ in [("counters", "TEXT DEFAULT '{}'"),
+                 ("achievements", "TEXT DEFAULT '{}'"),
+                 ("reputation", "INTEGER DEFAULT 0"),
+                 ("last_collect", "TEXT"),
                  ("last_duel", "TEXT")]:
     try:
-        cur.execute(f"ALTER TABLE users ADD COLUMN {col} {typ}")
+        cur.execute("ALTER TABLE users ADD COLUMN " + col + " " + typ)
     except sqlite3.OperationalError:
         pass
 conn.commit()
 
-# ====================== ПОЛЬЗОВАТЕЛИ ======================
+pending = {}
+
+def is_admin(uid):
+    return bool(OWNER_ID) and uid == OWNER_ID
+
+def is_banned(uid):
+    cur.execute("SELECT until FROM bans WHERE user_id=?", (uid,))
+    row = cur.fetchone()
+    if not row:
+        return False
+    try:
+        if datetime.fromisoformat(row["until"]) > datetime.now():
+            return True
+    except Exception:
+        pass
+    cur.execute("DELETE FROM bans WHERE user_id=?", (uid,))
+    conn.commit()
+    return False
+
+def ban_user(uid, h):
+    until = (datetime.now() + timedelta(hours=h)).isoformat()
+    cur.execute("INSERT OR REPLACE INTO bans VALUES (?,?)", (uid, until))
+    conn.commit()
+
+def unban_user(uid):
+    cur.execute("DELETE FROM bans WHERE user_id=?", (uid,))
+    conn.commit()
+
 def create_user(uid, un=""):
-    cur.execute("INSERT OR IGNORE INTO users (user_id, username, balance) VALUES (?,?,?)",
+    cur.execute("INSERT OR IGNORE INTO users (user_id,username,balance) VALUES (?,?,?)",
                 (uid, un or "", START_BALANCE))
     conn.commit()
 
@@ -194,19 +213,21 @@ def get_user(uid, un=""):
     return cur.fetchone()
 
 def upd(uid, **kw):
-    keys = ", ".join(f"{k}=?" for k in kw)
-    cur.execute(f"UPDATE users SET {keys} WHERE user_id=?", (*kw.values(), uid))
+    keys = ", ".join(k + "=?" for k in kw)
+    cur.execute("UPDATE users SET " + keys + " WHERE user_id=?",
+                (*kw.values(), uid))
     conn.commit()
 
-def add_balance(uid, amt):
+def add_bal(uid, amt):
     cur.execute("UPDATE users SET balance=balance+? WHERE user_id=?", (amt, uid))
     conn.commit()
 
-def add_card(uid, name, rar, source="unknown"):
+def add_card(uid, name, rar, src="unknown"):
+    now = datetime.now().isoformat()
     cur.execute("INSERT INTO inventory (user_id,card_name,rarity,obtained_at) VALUES (?,?,?,?)",
-                (uid, name, rar, datetime.now().isoformat()))
+                (uid, name, rar, now))
     cur.execute("INSERT INTO history (user_id,card_name,rarity,source,created_at) VALUES (?,?,?,?,?)",
-                (uid, name, rar, source, datetime.now().isoformat()))
+                (uid, name, rar, src, now))
     conn.commit()
 
 def get_inv(uid):
@@ -221,124 +242,141 @@ def del_card(uid, name):
 def get_rep(uid):
     return get_user(uid)["reputation"] or 0
 
-def add_rep(uid, amount):
-    amount *= event_mult("x2_rep")
-    cur.execute("UPDATE users SET reputation=reputation+? WHERE user_id=?", (amount, uid))
+def add_rep(uid, amt):
+    amt *= ev_mult("x2_rep")
+    cur.execute("UPDATE users SET reputation=reputation+? WHERE user_id=?", (amt, uid))
     conn.commit()
 
-def rep_sell_multiplier(rp): return 1 + 0.02 * (rp // RP_STEP)
-def rep_passive_multiplier(rp): return 1 + 0.05 * (rp // RP_STEP)
+def rep_sell_mult(rp):
+    return 1 + 0.02 * (rp // RP_STEP)
 
-def get_counters(uid): return json.loads(get_user(uid)["counters"] or "{}")
-def get_achievements(uid): return json.loads(get_user(uid)["achievements"] or "{}")
+def rep_pas_mult(rp):
+    return 1 + 0.05 * (rp // RP_STEP)
 
-async def check_achievements(uid, message=None):
-    c = get_counters(uid)
-    ach = get_achievements(uid)
+def get_cnt(uid):
+    return json.loads(get_user(uid)["counters"] or "{}")
+
+def get_ach(uid):
+    return json.loads(get_user(uid)["achievements"] or "{}")
+
+async def check_ach(uid, msg=None):
+    c = get_cnt(uid)
+    a = get_ach(uid)
     unlocked = []
-    for a in ACHIEVEMENTS:
-        if ach.get(a["id"]): continue
-        val = c.get(a["counter"], 0)
-        if a["counter"] == "reputation":
+    for aid, text, rew, key, thr in ACHIEVEMENTS:
+        if a.get(aid):
+            continue
+        val = c.get(key, 0)
+        if key == "reputation":
             val = get_rep(uid)
-        if val >= ACHIEVEMENT_THRESHOLDS[a["id"]]:
-            ach[a["id"]] = True
-            add_balance(uid, a["reward"])
-            unlocked.append(a)
+        if val >= thr:
+            a[aid] = True
+            add_bal(uid, rew)
+            unlocked.append((text, rew))
     if unlocked:
-        upd(uid, achievements=json.dumps(ach))
-        if message:
-            for a in unlocked:
+        upd(uid, achievements=json.dumps(a))
+        if msg:
+            for text, rew in unlocked:
                 try:
-                    await message.answer(f"🏅 Достижение! {a['text']} +{a['reward']}💰", parse_mode="HTML")
-                except: pass
+                    await msg.answer("Достижение: " + text + " +" + str(rew))
+                except Exception:
+                    pass
 
-async def bump_counter(uid, key, amount=1, message=None):
-    c = get_counters(uid)
-    c[key] = c.get(key, 0) + amount
+async def bump(uid, key, amt=1, msg=None):
+    c = get_cnt(uid)
+    c[key] = c.get(key, 0) + amt
     upd(uid, counters=json.dumps(c))
-    await check_achievements(uid, message)
+    await check_ach(uid, msg)
 
-async def give_xp(uid, amount, message=None):
-    amount *= event_mult("x2_xp")
+async def give_xp(uid, amt, msg=None):
+    amt *= ev_mult("x2_xp")
     u = get_user(uid)
-    new_xp = u["xp"] + amount
-    new_lvl = u["level"]
+    xp = u["xp"] + amt
+    lv = u["level"]
     leveled = False
-    while new_xp >= xp_needed(new_lvl):
-        new_xp -= xp_needed(new_lvl); new_lvl += 1; leveled = True
-    upd(uid, xp=new_xp, level=new_lvl)
+    while xp >= xp_need(lv):
+        xp -= xp_need(lv)
+        lv += 1
+        leveled = True
+    upd(uid, xp=xp, level=lv)
     if leveled:
-        if message:
-            try: await message.answer(f"🎉 Уровень {new_lvl}!", parse_mode="HTML")
-            except: pass
-        c = get_counters(uid); c["level"] = new_lvl
+        if msg:
+            try:
+                await msg.answer("Уровень " + str(lv) + "!")
+            except Exception:
+                pass
+        c = get_cnt(uid)
+        c["level"] = lv
         upd(uid, counters=json.dumps(c))
-        await check_achievements(uid, message)
+        await check_ach(uid, msg)
 
-# ====================== КВЕСТЫ ======================
-QUEST_TEMPLATES = [
-    {"id": "case3", "text": "Открой 3 кейса", "goal": 3, "reward": 200, "type": "case"},
-    {"id": "sell2", "text": "Продай 2 карты", "goal": 2, "reward": 100, "type": "sell"},
-    {"id": "case5", "text": "Открой 5 кейсов", "goal": 5, "reward": 400, "type": "case"},
+QUESTS = [
+    ("case3", "Открой 3 кейса", 3, 200, "case"),
+    ("sell2", "Продай 2 карты", 2, 100, "sell"),
+    ("case5", "Открой 5 кейсов", 5, 400, "case"),
 ]
 
 def get_quests(uid):
     u = get_user(uid)
     today = datetime.now().date().isoformat()
     if u["quest_date"] != today:
-        data = {q["id"]: 0 for q in QUEST_TEMPLATES}
-        upd(uid, quest_date=today, quest_data=json.dumps(data))
-        return data
+        d = {q[0]: 0 for q in QUESTS}
+        upd(uid, quest_date=today, quest_data=json.dumps(d))
+        return d
     return json.loads(u["quest_data"] or "{}")
 
-def progress_quest(uid, qtype, amount=1):
-    data = get_quests(uid)
-    for q in QUEST_TEMPLATES:
-        if q["type"] == qtype and data.get(q["id"], 0) < q["goal"]:
-            data[q["id"]] = min(data[q["id"]] + amount, q["goal"])
-    upd(uid, quest_data=json.dumps(data))
+def prog_quest(uid, qtype, amt=1):
+    d = get_quests(uid)
+    for qid, text, goal, rew, t in QUESTS:
+        if t == qtype and d.get(qid, 0) < goal:
+            d[qid] = min(d.get(qid, 0) + amt, goal)
+    upd(uid, quest_data=json.dumps(d))
 
 def claim_quests(uid):
-    data = get_quests(uid)
+    d = get_quests(uid)
     total = 0
-    for q in QUEST_TEMPLATES:
-        if data.get(q["id"], 0) >= q["goal"]:
-            total += q["reward"]; data[q["id"]] = 0
+    for qid, text, goal, rew, t in QUESTS:
+        if d.get(qid, 0) >= goal:
+            total += rew
+            d[qid] = 0
     if total > 0:
-        add_balance(uid, total); upd(uid, quest_data=json.dumps(data))
+        add_bal(uid, total)
+        upd(uid, quest_data=json.dumps(d))
     return total
 
-# ====================== БУСТЕРЫ / ПАССИВ ======================
-def get_boosters(uid): return json.loads(get_user(uid)["boosters"] or "{}")
-def set_boosters(uid, d): upd(uid, boosters=json.dumps(d))
+def get_boosters(uid):
+    return json.loads(get_user(uid)["boosters"] or "{}")
 
-def calc_passive_rate(uid):
+def set_boosters(uid, d):
+    upd(uid, boosters=json.dumps(d))
+
+def pas_rate(uid):
     inv = get_inv(uid)
-    base = sum(RARITIES[r["rarity"]]["passive"] for r in inv)
-    return int(base * rep_passive_multiplier(get_rep(uid)))
+    base = sum(RARITIES[r["rarity"]]["pas"] for r in inv)
+    return int(base * rep_pas_mult(get_rep(uid)))
 
-# ====================== ИВЕНТЫ ======================
-def set_event(name, hours):
-    expires = (datetime.now() + timedelta(hours=hours)).isoformat()
-    cur.execute("INSERT OR REPLACE INTO events (name, expires) VALUES (?,?)", (name, expires))
+def set_event(name, h):
+    e = (datetime.now() + timedelta(hours=h)).isoformat()
+    cur.execute("INSERT OR REPLACE INTO events VALUES (?,?)", (name, e))
     conn.commit()
 
-def event_mult(name):
+def ev_mult(name):
     cur.execute("SELECT expires FROM events WHERE name=?", (name,))
-    row = cur.fetchone()
-    if not row: return 1
+    r = cur.fetchone()
+    if not r:
+        return 1
     try:
-        if datetime.fromisoformat(row["expires"]) > datetime.now():
+        if datetime.fromisoformat(r["expires"]) > datetime.now():
             return 2
-    except: pass
+    except Exception:
+        pass
     return 1
 
 def active_events():
-    cur.execute("SELECT name, expires FROM events WHERE expires > ?", (datetime.now().isoformat(),))
-    return cur.fetchall()
+    cur.execute("SELECT name FROM events WHERE expires > ?",
+                (datetime.now().isoformat(),))
+    return [r["name"] for r in cur.fetchall()]
 
-# ====================== РЫНОК ======================
 def clean_market():
     now = datetime.now()
     cur.execute("SELECT * FROM market")
@@ -346,27 +384,33 @@ def clean_market():
     changed = False
     for r in rows:
         try:
-            if (now - datetime.fromisoformat(r["created_at"])).total_seconds() > MARKET_LOT_HOURS * 3600:
-                add_card(r["seller_id"], r["card_name"], r["rarity"], source="market_return")
+            delta = (now - datetime.fromisoformat(r["created_at"])).total_seconds()
+            if delta > LOT_HOURS * 3600:
+                add_card(r["seller_id"], r["card_name"], r["rarity"], "market_return")
                 cur.execute("DELETE FROM market WHERE id=?", (r["id"],))
                 changed = True
-        except: pass
-    if changed: conn.commit()
+        except Exception:
+            pass
+    if changed:
+        conn.commit()
 
 def add_lot(uid, name, price):
-    rar, card = find_card(name)
-    if not card: return False, "Карта не найдена"
+    rar, cd = find_card(name)
+    if not cd:
+        return False, "Карта не найдена"
     inv = [r for r in get_inv(uid) if r["card_name"] == name]
-    if not inv: return False, "У тебя нет такой карты"
+    if not inv:
+        return False, "У тебя нет такой карты"
     del_card(uid, name)
     u = get_user(uid)
-    cur.execute("INSERT INTO market (seller_id, seller_name, card_name, rarity, price, created_at) VALUES (?,?,?,?,?,?)",
-                (uid, u["username"] or f"id{uid}", name, rar, price, datetime.now().isoformat()))
+    sname = u["username"] or ("id" + str(uid))
+    cur.execute("INSERT INTO market (seller_id,seller_name,card_name,rarity,price,created_at) VALUES (?,?,?,?,?,?)",
+                (uid, sname, name, rar, price, datetime.now().isoformat()))
     conn.commit()
     return True, "OK"
 
-def get_lots(limit=10, offset=0):
-    cur.execute("SELECT * FROM market ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset))
+def get_lots(limit=10):
+    cur.execute("SELECT * FROM market ORDER BY id DESC LIMIT ?", (limit,))
     return cur.fetchall()
 
 def get_my_lots(uid):
@@ -376,25 +420,27 @@ def get_my_lots(uid):
 def buy_lot(uid, lot_id):
     cur.execute("SELECT * FROM market WHERE id=?", (lot_id,))
     lot = cur.fetchone()
-    if not lot: return False, "Лот не найден"
-    if lot["seller_id"] == uid: return False, "Нельзя купить свой лот"
+    if not lot:
+        return False, "Лот не найден"
+    if lot["seller_id"] == uid:
+        return False, "Нельзя купить свой лот"
     u = get_user(uid)
-    if u["balance"] < lot["price"]: return False, "Недостаточно монет"
-    add_balance(uid, -lot["price"])
-    seller_cut = int(lot["price"] * (1 - MARKET_COMMISSION))
-    add_balance(lot["seller_id"], seller_cut)
-    add_card(uid, lot["card_name"], lot["rarity"], source="market_buy")
+    if u["balance"] < lot["price"]:
+        return False, "Недостаточно монет"
+    add_bal(uid, -lot["price"])
+    cut = int(lot["price"] * (1 - COMMISSION))
+    add_bal(lot["seller_id"], cut)
+    add_card(uid, lot["card_name"], lot["rarity"], "market_buy")
     cur.execute("DELETE FROM market WHERE id=?", (lot_id,))
     conn.commit()
-    c = get_counters(lot["seller_id"])
+    c = get_cnt(lot["seller_id"])
     c["market_sold"] = c.get("market_sold", 0) + 1
     upd(lot["seller_id"], counters=json.dumps(c))
     return True, lot["card_name"]
 
-# ====================== ПРОМОКОДЫ ======================
-def add_promo(code, reward, uses):
+def add_promo(code, rew, uses):
     try:
-        cur.execute("INSERT INTO promo (code, reward, max_uses) VALUES (?,?,?)", (code.upper(), reward, uses))
+        cur.execute("INSERT INTO promo VALUES (?,?,?,0)", (code.upper(), rew, uses))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -404,119 +450,89 @@ def use_promo(uid, code):
     code = code.upper()
     cur.execute("SELECT * FROM promo WHERE code=?", (code,))
     p = cur.fetchone()
-    if not p: return False, "Промокод не найден"
-    if p["uses"] >= p["max_uses"]: return False, "Промокод закончился"
+    if not p:
+        return False, "Промокод не найден"
+    if p["uses"] >= p["max_uses"]:
+        return False, "Промокод закончился"
     cur.execute("SELECT 1 FROM promo_used WHERE user_id=? AND code=?", (uid, code))
-    if cur.fetchone(): return False, "Ты уже использовал этот промокод"
+    if cur.fetchone():
+        return False, "Ты уже использовал этот промокод"
     cur.execute("UPDATE promo SET uses=uses+1 WHERE code=?", (code,))
-    cur.execute("INSERT INTO promo_used (user_id, code) VALUES (?,?)", (uid, code))
+    cur.execute("INSERT INTO promo_used VALUES (?,?)", (uid, code))
     conn.commit()
-    add_balance(uid, p["reward"])
+    add_bal(uid, p["reward"])
     return True, p["reward"]
 
-# ====================== КОЛЛЕКЦИИ ======================
-def collection_status(uid, rar):
+def coll_status(uid, rar):
     inv = get_inv(uid)
     owned = set(r["card_name"] for r in inv if r["rarity"] == rar)
-    needed = set(c["name"] for c in CARDS[rar])
-    return len(owned & needed), len(needed)
+    need = set(c[0] for c in CARDS[rar])
+    return len(owned & need), len(need)
 
-def claim_collection(uid, rar):
-    owned, total = collection_status(uid, rar)
-    if owned < total: return 0
-    ach = get_achievements(uid)
-    key = f"coll_{rar}"
-    if ach.get(key): return 0
-    ach[key] = True
-    upd(uid, achievements=json.dumps(ach))
-    reward = COLLECTIONS[rar]["reward"]
-    add_balance(uid, reward)
-    return reward
+def claim_coll(uid, rar):
+    o, t = coll_status(uid, rar)
+    if o < t:
+        return 0
+    a = get_ach(uid)
+    key = "coll_" + rar
+    if a.get(key):
+        return 0
+    a[key] = True
+    upd(uid, achievements=json.dumps(a))
+    rew = COLLECTIONS[rar]["reward"]
+    add_bal(uid, rew)
+    return rew
 
-# ====================== ИСТОРИЯ ======================
 def get_history(uid, limit=10):
     cur.execute("SELECT * FROM history WHERE user_id=? ORDER BY id DESC LIMIT ?", (uid, limit))
     return cur.fetchall()
 
-# ====================== ХЕЛПЕРЫ ======================
 def roll_card(case_key):
-    w = CASES[case_key]["weights"]
-    rar = random.choices(list(w.keys()), weights=list(w.values()), k=1)[0]
+    w = CASES[case_key]["w"]
+    keys = list(w.keys())
+    weights = list(w.values())
+    rar = random.choices(keys, weights=weights, k=1)[0]
     return rar, random.choice(CARDS[rar])
 
 def fmt_time(td):
     t = int(td.total_seconds())
-    h, r = divmod(t, 3600); m, s = divmod(r, 60)
-    return f"{h}ч {m}м {s}с"
+    h, r = divmod(t, 3600)
+    m, s = divmod(r, 60)
+    return str(h) + "ч " + str(m) + "м " + str(s) + "с"
 
 def sell_price(uid, rar):
-    return int(RARITIES[rar]["sell"] * rep_sell_multiplier(get_rep(uid)))
+    return int(RARITIES[rar]["sell"] * rep_sell_mult(get_rep(uid)))
 
 def find_card(name):
-    for rar, cards in CARDS.items():
-        for c in cards:
-            if c["name"] == name:
-                return rar, c
+    for rar in CARDS:
+        for cd in CARDS[rar]:
+            if cd[0] == name:
+                return rar, cd
     return None, None
 
-# ====================== АДМИН-ПАНЕЛЬ ======================
-pending = {}
+def card_line(cd, rar, cnt=None):
+    e = RARITIES[rar]["e"]
+    line = e + " " + cd[1] + " " + cd[0]
+    if cnt:
+        line += " x" + str(cnt)
+    return line
 
-def is_admin(uid):
-    return bool(OWNER_ID) and uid == OWNER_ID
-
-def is_banned(uid):
-    cur.execute("SELECT until FROM bans WHERE user_id=?", (uid,))
-    row = cur.fetchone()
-    if not row: return False
-    try:
-        if datetime.fromisoformat(row["until"]) > datetime.now():
-            return True
-    except: pass
-    cur.execute("DELETE FROM bans WHERE user_id=?", (uid,))
-    conn.commit()
-    return False
-
-def ban_user(uid, hours):
-    until = (datetime.now() + timedelta(hours=hours)).isoformat()
-    cur.execute("INSERT OR REPLACE INTO bans (user_id, until) VALUES (?,?)", (uid, until))
-    conn.commit()
-
-def unban_user(uid):
-    cur.execute("DELETE FROM bans WHERE user_id=?", (uid,))
-    conn.commit()
-
-def admin_menu():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📊 Статистика бота", callback_data="adm_stats")],
-        [InlineKeyboardButton(text="📢 Рассылка", callback_data="adm_bc")],
-        [InlineKeyboardButton(text="🎁 Выдать монеты", callback_data="adm_give_coins"),
-         InlineKeyboardButton(text="🎴 Выдать карту", callback_data="adm_give_card")],
-        [InlineKeyboardButton(text="📜 Создать промокод", callback_data="adm_promo")],
-        [InlineKeyboardButton(text="🎬 Ивент", callback_data="adm_event")],
-        [InlineKeyboardButton(text="🚫 Бан", callback_data="adm_ban"),
-         InlineKeyboardButton(text="✅ Разбан", callback_data="adm_unban")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")],
-    ])
-
-# ====================== REPLY-КЛАВИАТУРА ======================
-def reply_main_menu(uid=None):
+def reply_menu(uid=None):
     rows = [
         [KeyboardButton(text="📦 Кейсы"), KeyboardButton(text="🎒 Коллекция")],
         [KeyboardButton(text="💰 Баланс"), KeyboardButton(text="💱 Продать")],
         [KeyboardButton(text="💵 Собрать"), KeyboardButton(text="📅 Бонус")],
         [KeyboardButton(text="🎮 Игры"), KeyboardButton(text="🏪 Рынок")],
         [KeyboardButton(text="📚 Коллекции"), KeyboardButton(text="🏆 Топ")],
-        [KeyboardButton(text="🎖️ Репутация"), KeyboardButton(text="📊 Статистика")],
+        [KeyboardButton(text="🎖 Репутация"), KeyboardButton(text="📊 Статистика")],
         [KeyboardButton(text="📋 Квесты"), KeyboardButton(text="🏅 Достижения")],
-        [KeyboardButton(text="⚒️ Крафт"), KeyboardButton(text="❓ Помощь")],
+        [KeyboardButton(text="⚒ Крафт"), KeyboardButton(text="❓ Помощь")],
     ]
     if uid and is_admin(uid):
         rows.append([KeyboardButton(text="👑 Админ-панель")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, is_persistent=True)
 
-# ====================== INLINE-МЕНЮ ======================
-def main_menu(uid=None):
+def inline_menu(uid=None):
     rows = [
         [InlineKeyboardButton(text="📦 Кейсы", callback_data="cases")],
         [InlineKeyboardButton(text="💰 Баланс", callback_data="balance"),
@@ -529,162 +545,223 @@ def main_menu(uid=None):
          InlineKeyboardButton(text="📅 Бонус", callback_data="daily")],
         [InlineKeyboardButton(text="📋 Квесты", callback_data="quests"),
          InlineKeyboardButton(text="🏅 Достижения", callback_data="ach")],
-        [InlineKeyboardButton(text="🎖️ Репутация", callback_data="rep"),
-         InlineKeyboardButton(text="⚒️ Крафт", callback_data="craft")],
+        [InlineKeyboardButton(text="🎖 Репутация", callback_data="rep"),
+         InlineKeyboardButton(text="⚒ Крафт", callback_data="craft")],
         [InlineKeyboardButton(text="📊 Статистика", callback_data="stats"),
          InlineKeyboardButton(text="🏆 Топ", callback_data="top")],
     ]
     if uid and is_admin(uid):
-        rows.append([InlineKeyboardButton(text="👑 Админ-панель", callback_data="admin")])
+        rows.append([InlineKeyboardButton(text="👑 Админ", callback_data="admin")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 def cases_menu():
-    btns = [[InlineKeyboardButton(text=f"{c['emoji']} {c['name']} — {c['price']}💰", callback_data=f"case:{k}")]
-            for k, c in CASES.items()]
-    btns.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
+    btns = []
+    for k, c in CASES.items():
+        t = c["emoji"] + " " + c["name"] + " - " + str(c["price"])
+        btns.append([InlineKeyboardButton(text=t, callback_data="case:" + k)])
+    btns.append([InlineKeyboardButton(text="Назад", callback_data="back")])
     return InlineKeyboardMarkup(inline_keyboard=btns)
 
 def sell_menu(uid):
     inv = get_inv(uid)
-    if not inv: return None
+    if not inv:
+        return None
     seen = {}
-    for row in inv:
-        key = (row["card_name"], row["rarity"])
-        seen[key] = seen.get(key, 0) + 1
+    for r in inv:
+        k = (r["card_name"], r["rarity"])
+        seen[k] = seen.get(k, 0) + 1
     order = {"legendary": 0, "epic": 1, "rare": 2, "common": 3}
+    items = sorted(seen.items(), key=lambda x: order[x[0][1]])
     btns = []
-    for (name, rar), cnt in sorted(seen.items(), key=lambda x: order[x[0][1]]):
+    for (name, rar), cnt in items:
         price = sell_price(uid, rar)
-        btns.append([InlineKeyboardButton(text=f"{RARITIES[rar]['emoji']} {name} ×{cnt} — {price}💰",
-                                          callback_data=f"sell:{name}")])
-    btns.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
+        t = RARITIES[rar]["e"] + " " + name + " x" + str(cnt)
+        t += " - " + str(price)
+        btns.append([InlineKeyboardButton(text=t, callback_data="sell:" + name)])
+    btns.append([InlineKeyboardButton(text="Назад", callback_data="back")])
     return InlineKeyboardMarkup(inline_keyboard=btns)
 
-def collection_menu(uid):
+def coll_menu(uid):
     inv = get_inv(uid)
-    if not inv: return None
+    if not inv:
+        return None
     grouped = {}
     for r in inv:
-        key = (r["card_name"], r["rarity"])
-        grouped[key] = grouped.get(key, 0) + 1
+        k = (r["card_name"], r["rarity"])
+        grouped[k] = grouped.get(k, 0) + 1
     order = {"legendary": 0, "epic": 1, "rare": 2, "common": 3}
+    items = sorted(grouped.items(), key=lambda x: order[x[0][1]])
     btns = []
-    for (name, rar), cnt in sorted(grouped.items(), key=lambda x: order[x[0][1]]):
-        btns.append([InlineKeyboardButton(text=f"{RARITIES[rar]['emoji']} {name} ×{cnt}",
-                                          callback_data=f"cardinfo:{name}")])
-    btns.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
-    return Inline forKeyboardMarkup(inline_keyboard= (btns)
+    for (name, rar), cnt in items:
+        t = RARITIES[rar]["e"] + " " + name + " x" + str(cnt)
+        btns.append([InlineKeyboardButton(text=t, callback_data="ci:" + name)])
+    btns.append([InlineKeyboardButton(text="Назад", callback_data="back")])
+    return InlineKeyboardMarkup(inline_keyboard=btns)
 
-defname craft_menu(uid):
+def craft_menu(uid):
     inv = get_inv(uid)
     btns = []
-    for rar_key in ["common", "rare", "epic"]:
-        available = sum(1 for row in inv if row["rarity"] == rar_key)
-        if available >= 3:
-            nxt = {"common": "rare", "rare": "epic", "epic": "legendary"}[rar_key]
-            btns.append([InlineKeyboardButton(
-                text=f"3× {RARITIES[rar_key]['name']} → 1× {RARITIES[nxt]['name']}",
-                callback_data=f"craft:{rar_key}")])
-    btns.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
-    return InlineKeyboardMarkup(inline_keyboard=btns) if len(btns) > 1 else None
+    for rk in ["common", "rare", "epic"]:
+        avail = sum(1 for r in inv if r["rarity"] == rk)
+        if avail >= 3:
+            nxt = {"common": "rare", "rare": "epic", "epic": "legendary"}[rk]
+            t = "3x " + RARITIES[rk]["name"] + " -> 1x "
+            t += RARITIES[nxt]["name"]
+            btns.append([InlineKeyboardButton(text=t, callback_data="craft:" + rk)])
+    btns.append([InlineKeyboardButton(text="Назад", callback_data="back")])
+    if len(btns) > 1:
+        return InlineKeyboardMarkup(inline_keyboard=btns)
+    return None
 
 def games_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚔️ Дуэль — /duel", callback_data="help_duel")],
-        [InlineKeyboardButton(text="🎰 Рулетка — /roulette", callback_data="help_roulette")],
-        [InlineKeyboardButton(text="🎲 Кости — /dice", callback_data="help_dice")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")],
+        [InlineKeyboardButton(text="Дуэль - /duel 100", callback_data="h:duel")],
+        [InlineKeyboardButton(text="Рулетка - /roulette", callback_data="h:roul")],
+        [InlineKeyboardButton(text="Кости - /dice 100", callback_data="h:dice")],
+        [InlineKeyboardButton(text="Назад", callback_data="back")],
     ])
 
 def market_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 Витрина", callback_data="market_browse")],
-        [InlineKeyboardButton(text="📤 Мои лоты", callback_data="market_my")],
-        [InlineKeyboardButton(text="❓ Как продавать", callback_data="help_market")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")],
+        [InlineKeyboardButton(text="Витрина", callback_data="mkt_browse")],
+        [InlineKeyboardButton(text="Мои лоты", callback_data="mkt_my")],
+        [InlineKeyboardButton(text="Назад", callback_data="back")],
     ])
 
-def market_browse_menu(lots):
+def mkt_browse_menu(lots):
     btns = []
     for lot in lots:
-        emoji = RARITIES[lot["rarity"]]["emoji"]
-        btns.append([InlineKeyboardButton(
-            text=f"{emoji} {lot['card_name']} — {lot['price']}💰 (от {lot['seller_name']})",
-            callback_data=f"buy_lot:{lot['id']}")])
-    btns.append([InlineKeyboardButton(text="🔄 Обновить", callback_data="market_browse")])
-    btns.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="market")])
+        e = RARITIES[lot["rarity"]]["e"]
+        t = e + " " + lot["card_name"] + " - " + str(lot["price"])
+        btns.append([InlineKeyboardButton(text=t, callback_data="buy:" + str(lot["id"]))])
+    btns.append([InlineKeyboardButton(text="Обновить", callback_data="mkt_browse")])
+    btns.append([InlineKeyboardButton(text="Назад", callback_data="market")])
     return InlineKeyboardMarkup(inline_keyboard=btns)
 
-def collections_menu(uid):
+def colls_menu(uid):
     btns = []
     for rar, info in COLLECTIONS.items():
-        owned, total = collection_status(uid, rar)
-        emoji = RARITIES[rar]["emoji"]
-        ach = get_achievements(uid)
-        claimed = "✅" if ach.get(f"coll_{rar}") else ""
-        btns.append([InlineKeyboardButton(
-            text=f"{emoji} {info['name']} — {owned}/{total} {claimed}",
-            callback_data=f"coll_show:{rar}")])
-    btns.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
+        o, t = coll_status(uid, rar)
+        e = RARITIES[rar]["e"]
+        ach = get_ach(uid)
+        mark = " OK" if ach.get("coll_" + rar) else ""
+        txt = e + " " + info["name"] + " " + str(o) + "/" + str(t) + mark
+        btns.append([InlineKeyboardButton(text=txt, callback_data="cs:" + rar)])
+    btns.append([InlineKeyboardButton(text="Назад", callback_data="back")])
     return InlineKeyboardMarkup(inline_keyboard=btns)
 
-# ====================== БОТ ======================
+def admin_menu():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Статистика", callback_data="a:stats")],
+        [InlineKeyboardButton(text="Рассылка", callback_data="a:bc")],
+        [InlineKeyboardButton(text="Выдать монеты", callback_data="a:coins")],
+        [InlineKeyboardButton(text="Выдать карту", callback_data="a:card")],
+        [InlineKeyboardButton(text="Промокод", callback_data="a:promo")],
+        [InlineKeyboardButton(text="Ивент", callback_data="a:event")],
+        [InlineKeyboardButton(text="Бан", callback_data="a:ban")],
+        [InlineKeyboardButton(text="Разбан", callback_data="a:unban")],
+        [InlineKeyboardButton(text="Назад", callback_data="back")],
+    ])
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# ---- Команды ----
 @dp.message(Command("start"))
 async def cmd_start(m: Message):
     if is_banned(m.from_user.id):
-        await m.answer("🚫 Ты забанен в этом боте."); return
+        await m.answer("Ты забанен.")
+        return
     u = get_user(m.from_user.id, m.from_user.username)
-    ev = ""
+    lines = ["Добро пожаловать!", ""]
+    lines.append("Баланс: " + str(u["balance"]))
+    lines.append("Уровень: " + str(u["level"]))
+    lines.append("Репутация: " + str(u["reputation"]))
+    lines.append("Звание: " + rank_for(u["reputation"]))
     for e in active_events():
-        ev += f"\n🔥 Ивент: {e['name']}"
-    await m.answer(
-        f"🎴 Добро пожаловать!\n\n"
-        f"💰 Баланс: {u['balance']}\n"
-        f"⭐ Уровень: {u['level']} ({u['xp']}/{xp_needed(u['level'])} XP)\n"
-        f"🎖️ Репутация: {u['reputation']} — {rank_for(u['reputation'])}{ev}\n\n"
-        f"👇 Используй кнопки внизу экрана",
-        reply_markup=reply_main_menu(m.from_user.id), parse_mode="HTML")
+        lines.append("Ивент: " + e)
+    lines.append("")
+    lines.append("Кнопки меню внизу экрана")
+    await m.answer("\n".join(lines),
+                   reply_markup=reply_menu(m.from_user.id))
 
 @dp.message(Command("menu"))
 async def cmd_menu(m: Message):
-    await m.answer("Главное меню 👇", reply_markup=reply_main_menu(m.from_user.id))
+    await m.answer("Меню", reply_markup=reply_menu(m.from_user.id))
 
-@dp.message(Command("top"))
-async def cmd_top(m: Message): await show_top(m)
+@dp.message(Command("admin"))
+async def cmd_admin(m: Message):
+    if not is_admin(m.from_user.id):
+        await m.answer("Только для владельца")
+        return
+    await m.answer("Админ-панель", reply_markup=admin_menu())
 
-@dp.message(Command("quests"))
-async def cmd_quests(m: Message): await show_quests(m, m.from_user.id)
+@dp.message(Command("cancel"))
+async def cmd_cancel(m: Message):
+    pending.pop(m.from_user.id, None)
+    await m.answer("Отменено")
 
 @dp.message(Command("claim"))
 async def cmd_claim(m: Message):
     t = claim_quests(m.from_user.id)
-    await m.answer(f"🎁 +{t}💰" if t else "Нет выполненных квестов")
+    if t:
+        await m.answer("Получено: +" + str(t))
+    else:
+        await m.answer("Нет выполненных квестов")
 
-@dp.message(Command("sell"))
-async def cmd_sell(m: Message):
-    get_user(m.from_user.id, m.from_user.username)
-    menu = sell_menu(m.from_user.id)
-    if not menu:
-        await m.answer("🎒 Нечего продавать."); return
-    await m.answer("💱 Выбери карту:", reply_markup=menu)
+@dp.message(Command("promo"))
+async def cmd_promo(m: Message):
+    uid = m.from_user.id
+    get_user(uid, m.from_user.username)
+    parts = m.text.split()
+    if len(parts) < 2:
+        await m.answer("Использование: /promo КОД")
+        return
+    ok, res = use_promo(uid, parts[1])
+    if ok:
+        await m.answer("Промокод активирован! +" + str(res))
+    else:
+        await m.answer(res)
 
-@dp.message(Command("collect"))
-async def cmd_collect(m: Message): await do_collect(m.from_user.id, m)
+@dp.message(Command("sell_market"))
+async def cmd_sell_market(m: Message):
+    uid = m.from_user.id
+    get_user(uid, m.from_user.username)
+    if is_banned(uid):
+        return
+    text = m.text
+    if len(text) <= len("/sell_market "):
+        await m.answer("Формат: /sell_market ИмяКарты Цена")
+        return
+    body = text[len("/sell_market "):].strip()
+    parts = body.rsplit(" ", 1)
+    if len(parts) != 2 or not parts[1].isdigit():
+        await m.answer("Формат: /sell_market ИмяКарты Цена")
+        return
+    name = parts[0].strip()
+    price = int(parts[1])
+    if price < 10:
+        await m.answer("Минимум 10")
+        return
+    ok, msg = add_lot(uid, name, price)
+    if ok:
+        await m.answer("Лот выставлен: " + name + " за " + str(price))
+    else:
+        await m.answer("Ошибка: " + msg)
 
-@dp.message(Command("rep"))
-async def cmd_rep(m: Message): await show_rep(m.from_user.id, m)
+@dp.message(Command("market"))
+async def cmd_market(m: Message):
+    clean_market()
+    lots = get_lots(10)
+    if not lots:
+        await m.answer("Пока лотов нет")
+        return
+    await m.answer("Витрина:", reply_markup=mkt_browse_menu(lots))
 
-@dp.message(Command("stats"))
-async def cmd_stats(m: Message): await show_stats(m.from_user.id, m)
+@dp.message(Command("my_lots"))
+async def cmd_my_lots(m: Message):
+    await show_my_lots(m, m.from_user.id)
 
-@dp.message(Command("history"))
-async def cmd_history(m: Message): await show_history(m.from_user.id, m)
-
-@@dp.message(Command("find"))
+@dp.message(Command("find"))
 async def cmd_find(m: Message):
     uid = m.from_user.id
     get_user(uid, m.from_user.username)
@@ -705,25 +782,21 @@ async def cmd_find(m: Message):
     for r in found:
         key = (r["card_name"], r["rarity"])
         grouped[key] = grouped.get(key, 0) + 1
-    lines = []
-    lines.append("Найдено:")
+    lines = ["Найдено:"]
     for key, cnt in grouped.items():
         name = key[0]
         rar = key[1]
-        e = RARITIES[rar]["emoji"]
+        e = RARITIES[rar]["e"]
         lines.append(e + " " + name + " x" + str(cnt))
     await m.answer("\n".join(lines))
 
-@dp.message(Command("cancel"))
-async def cmd_cancel(m: Message):
-    pending.pop(m.from_user.id, None)
-    await m.answer("Отменено")
+@dp.message(Command("history"))
+async def cmd_history(m: Message):
+    await show_history(m.from_user.id, m)
 
-@dp.message(Command("admin"))
-async def cmd_admin(m: Message):
-    if not is_admin(m.from_user.id):
-        await m.answer("👑 Только для владельца"); return
-    await m.answer("👑 <b>Админ-панель</b>", reply_markup=admin_menu(), parse_mode="HTML")
+@dp.message(Command("stats"))
+async def cmd_stats(m: Message):
+    await show_stats(m.from_user.id, m)
 
 @dp.message(Command("duel"))
 async def cmd_duel(m: Message):
@@ -732,180 +805,162 @@ async def cmd_duel(m: Message):
     if is_banned(uid):
         return
     if not m.reply_to_message:
-        await m.answer("⚔️ Ответь на сообщение игрока командой /duel 100"); return
+        await m.answer("Ответь на сообщение игрока: /duel 100")
+        return
     opp = m.reply_to_message.from_user
     if opp.id == uid or opp.is_bot:
-        await m.answer("Нельзя дуэлить себя или бота"); return
-    args = m.text.split()[1:]
-    if not args or not args[0].isdigit():
-        await m.answer("Использование: /duel 100 (в ответ на сообщение)"); return
-    bet = int(args[0])
+        await m.answer("Нельзя дуэлить себя или бота")
+        return
+    parts = m.text.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        await m.answer("Использование: /duel 100")
+        return
+    bet = int(parts[1])
     if bet < MIN_BET:
-        await m.answer(f"Минимум {MIN_BET}💰"); return
-    u = get_user(uid); o = get_user(opp.id, opp.username)
+        await m.answer("Минимум " + str(MIN_BET))
+        return
+    u = get_user(uid)
+    o = get_user(opp.id, opp.username)
     if u["balance"] < bet:
-        await m.answer(f"У тебя нет {bet}💰"); return
+        await m.answer("Недостаточно монет")
+        return
     if o["balance"] < bet:
-        await m.answer(f"У соперника нет {bet}💰"); return
+        await m.answer("У соперника нет столько")
+        return
     if u["last_duel"]:
         last = datetime.fromisoformat(u["last_duel"])
         d = (datetime.now() - last).total_seconds()
-        if d < DUEL_COOLDOWN_SEC:
-            await m.answer(f"⏳ Кулдаун: {int(DUEL_COOLDOWN_SEC - d)}с"); return
-    add_balance(uid, -bet); add_balance(opp.id, -bet)
-    rar1, c1 = roll_card("basic"); rar2, c2 = roll_card("basic")
+        if d < DUEL_CD:
+            await m.answer("Кулдаун " + str(int(DUEL_CD - d)) + "с")
+            return
+    add_bal(uid, -bet)
+    add_bal(opp.id, -bet)
+    r1, c1 = roll_card("basic")
+    r2, c2 = roll_card("basic")
     order = {"common": 0, "rare": 1, "epic": 2, "legendary": 3}
-    if order[rar1] > order[rar2] or (order[rar1] == order[rar2] and RARITIES[rar1]["sell"] >= RARITIES[rar2]["sell"]):
-        winner, wname = uid, m.from_user.first_name
+    if order[r1] > order[r2]:
+        winner = uid
+        wname = m.from_user.first_name
+    elif order[r2] > order[r1]:
+        winner = opp.id
+        wname = opp.first_name
     else:
-        winner, wname = opp.id, opp.first_name
+        if RARITIES[r1]["sell"] >= RARITIES[r2]["sell"]:
+            winner = uid
+            wname = m.from_user.first_name
+        else:
+            winner = opp.id
+            wname = opp.first_name
     bank = bet * 2
-    add_balance(winner, bank)
+    add_bal(winner, bank)
     upd(uid, last_duel=datetime.now().isoformat())
     if winner == uid:
-        await bump_counter(uid, "duel_wins", 1, m)
-    await m.answer(
-        f"⚔️ <b>Дуэль!</b> Банк: {bank}💰\n\n"
-        f"🎴 {m.from_user.first_name}: {RARITIES[rar1]['emoji']} {c1['name']}\n"
-        f"🎴 {opp.first_name}: {RARITIES[rar2]['emoji']} {c2['name']}\n\n"
-        f"🏆 Победил: <b>{wname}</b> (+{bank}💰)", parse_mode="HTML")
+        await bump(uid, "duel_wins", 1, m)
+    lines = ["Дуэль! Банк: " + str(bank)]
+    lines.append(m.from_user.first_name + ": " + RARITIES[r1]["e"] + " " + c1[0])
+    lines.append(opp.first_name + ": " + RARITIES[r2]["e"] + " " + c2[0])
+    lines.append("Победил: " + wname + " (+" + str(bank) + ")")
+    await m.answer("\n".join(lines))
 
 @dp.message(Command("roulette"))
 async def cmd_roulette(m: Message):
     uid = m.from_user.id
     get_user(uid, m.from_user.username)
-    if is_banned(uid): return
-    args = m.text.split()[1:]
-    if len(args) < 2 or not args[0].isdigit() or args[1].lower() not in ("red", "black", "green"):
-        await m.answer("🎰 /roulette 100 red|black|green"); return
-    bet = int(args[0]); color = args[1].lower()
+    if is_banned(uid):
+        return
+    parts = m.text.split()
+    if len(parts) < 3:
+        await m.answer("Формат: /roulette 100 red|black|green")
+        return
+    if not parts[1].isdigit():
+        await m.answer("Ставка должна быть числом")
+        return
+    bet = int(parts[1])
+    color = parts[2].lower()
+    if color not in ("red", "black", "green"):
+        await m.answer("Цвет: red, black или green")
+        return
     if bet < MIN_BET:
-        await m.answer(f"Минимум {MIN_BET}💰"); return
+        await m.answer("Минимум " + str(MIN_BET))
+        return
     u = get_user(uid)
     if u["balance"] < bet:
-        await m.answer(f"Нет {bet}💰"); return
-    add_balance(uid, -bet)
+        await m.answer("Недостаточно монет")
+        return
+    add_bal(uid, -bet)
     roll = random.choices(["red", "black", "green"], weights=[47, 47, 6], k=1)[0]
     if roll == color:
         mult = 2 if color in ("red", "black") else 14
         win = bet * mult
-        add_balance(uid, win)
-        await m.answer(f"🎰 Выпало: <b>{roll}</b>\n🎉 Победа! +{win}💰 (x{mult})", parse_mode="HTML")
+        add_bal(uid, win)
+        await m.answer("Выпало: " + roll + ". Победа +" + str(win))
     else:
-        await m.answer(f"🎰 Выпало: <b>{roll}</b>\n💀 Проигрыш -{bet}💰", parse_mode="HTML")
+        await m.answer("Выпало: " + roll + ". Проигрыш -" + str(bet))
 
 @dp.message(Command("dice"))
 async def cmd_dice(m: Message):
     uid = m.from_user.id
     get_user(uid, m.from_user.username)
-    if is_banned(uid): return
-    args = m.text.split()[1:]
-    if not args or not args[0].isdigit():
-        await m.answer("🎲 /dice 100"); return
-    bet = int(args[0])
+    if is_banned(uid):
+        return
+    parts = m.text.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        await m.answer("Формат: /dice 100")
+        return
+    bet = int(parts[1])
     if bet < MIN_BET:
-        await m.answer(f"Минимум {MIN_BET}💰"); return
+        await m.answer("Минимум " + str(MIN_BET))
+        return
     u = get_user(uid)
     if u["balance"] < bet:
-        await m.answer(f"Нет {bet}💰"); return
-    add_balance(uid, -bet)
-    my = random.randint(1, 6); bt = random.randint(1, 6)
+        await m.answer("Недостаточно монет")
+        return
+    add_bal(uid, -bet)
+    my = random.randint(1, 6)
+    bt = random.randint(1, 6)
     if my > bt:
-        add_balance(uid, bet * 2)
-        await m.answer(f"🎲 Ты: {my} | Бот: {bt}\n🎉 Победа! +{bet}💰")
+        add_bal(uid, bet * 2)
+        await m.answer("Ты: " + str(my) + " Бот: " + str(bt) + ". Победа +" + str(bet))
     elif my < bt:
-        await m.answer(f"🎲 Ты: {my} | Бот: {bt}\n💀 Проигрыш -{bet}💰")
+        await m.answer("Ты: " + str(my) + " Бот: " + str(bt) + ". Проигрыш -" + str(bet))
     else:
-        add_balance(uid, bet)
-        await m.answer(f"🎲 Ты: {my} | Бот: {bt}\n🤝 Ничья, ставка возвращена")
+        add_bal(uid, bet)
+        await m.answer("Ты: " + str(my) + " Бот: " + str(bt) + ". Ничья")
 
-@dp.message(Command("sell_market"))
-async def cmd_sell_market(m: Message):
-    uid = m.from_user.id
-    get_user(uid, m.from_user.username)
-    if is_banned(uid): return
-    text = m.text[len("/sell_market "):].strip()
-    if " " not in text:
-        await m.answer("📤 /sell_market ИмяКарты Цена\nПример: /sell_market madk1d 500"); return
-    name, price_s = text.rsplit(" ", 1)
-    if not price_s.isdigit():
-        await m.answer("Цена должна быть числом"); return
-    price = int(price_s)
-    if price < 10:
-        await m.answer("Минимум 10💰"); return
-    ok, msg = add_lot(uid, name.strip(), price)
-    await m.answer(f"✅ Лот выставлен: {name} за {price}💰" if ok else f"❌ {msg}")
-
-@dp.message(Command("market"))
-async def cmd_market(m: Message): await show_market(m)
-
-@dp.message(Command("my_lots"))
-async def cmd_my_lots(m: Message): await show_my_lots(m, m.from_user.id)
-
-@dp.message(Command("promo"))
-async def cmd_promo(m: Message):
-    uid = m.from_user.id
-    get_user(uid, m.from_user.username)
-    args = m.text.split()[1:]
-    if not args:
-        await m.answer("Использование: /promo КОД"); return
-    ok, res = use_promo(uid, args[0])
-    if ok:
-        await m.answer(f"🎁 Промокод активирован! +{res}💰")
-    else:
-        await m.answer(f"❌ {res}")
-
-@dp.message(Command("addpromo"))
-async def cmd_addpromo(m: Message):
-    if not is_admin(m.from_user.id): return
-    args = m.text.split()[1:]
-    if len(args) < 3 or not args[1].isdigit() or not args[2].isdigit():
-        await m.answer("Использование: /addpromo КОД 500 10"); return
-    code, reward, uses = args[0], int(args[1]), int(args[2])
-    if add_promo(code, reward, uses):
-        await m.answer(f"✅ Промокод {code} на {reward}💰 ×{uses}")
-    else:
-        await m.answer("❌ Код уже существует")
-
-@dp.message(Command("event"))
-async def cmd_event(m: Message):
-    if not is_admin(m.from_user.id): return
-    args = m.text.split()[1:]
-    if len(args) < 2 or not args[1].isdigit():
-        await m.answer("Использование: /event x2_money 24\nДоступные: x2_money, x2_xp, x2_rep"); return
-    if args[0] not in ("x2_money", "x2_xp", "x2_rep"):
-        await m.answer("Ивенты: x2_money, x2_xp, x2_rep"); return
-    set_event(args[0], int(args[1]))
-    await m.answer(f"✅ Ивент {args[0]} на {args[1]}ч активирован")
-
-# ---- Callback-навигация ----
 @dp.callback_query(F.data == "back")
 async def cb_back(c: CallbackQuery):
-    await c.message.answer("Главное меню", reply_markup=main_menu(c.from_user.id)); await c.answer()
+    await c.message.answer("Меню", reply_markup=inline_menu(c.from_user.id))
+    await c.answer()
 
 @dp.callback_query(F.data == "cases")
 async def cb_cases(c: CallbackQuery):
-    await c.message.answer("Выбери кейс:", reply_markup=cases_menu()); await c.answer()
+    await c.message.answer("Выбери кейс:", reply_markup=cases_menu())
+    await c.answer()
 
 @dp.callback_query(F.data == "balance")
 async def cb_bal(c: CallbackQuery):
     u = get_user(c.from_user.id, c.from_user.username)
-    await c.message.answer(
-        f"💰 Баланс: {u['balance']}\n⭐ Ур. {u['level']}\n"
-        f"XP: {u['xp']}/{xp_needed(u['level'])}\n"
-        f"🎖️ RP: {u['reputation']} — {rank_for(u['reputation'])}", parse_mode="HTML")
+    lines = ["Баланс: " + str(u["balance"])]
+    lines.append("Уровень: " + str(u["level"]))
+    lines.append("XP: " + str(u["xp"]) + "/" + str(xp_need(u["level"])))
+    lines.append("Репутация: " + str(u["reputation"]))
+    lines.append("Звание: " + rank_for(u["reputation"]))
+    await c.message.answer("\n".join(lines))
     await c.answer()
 
 @dp.callback_query(F.data == "inv")
 async def cb_inv(c: CallbackQuery):
-    await show_collection(c.from_user.id, c.message); await c.answer()
+    await show_coll(c.from_user.id, c.message)
+    await c.answer()
 
-@dp.callback_query(F.data.startswith("cardinfo:"))
-async def cb_card_info(c: CallbackQuery):
+@dp.callback_query(F.data.startswith("ci:"))
+async def cb_ci(c: CallbackQuery):
     name = c.data.split(":", 1)[1]
-    ok = await render_card_info(c.message, c.from_user.id, name)
-    if ok: await c.answer()
-    else: await c.answer("Карта не найдена", show_alert=True)
+    ok = await render_card(c.message, c.from_user.id, name)
+    if ok:
+        await c.answer()
+    else:
+        await c.answer("Карта не найдена", show_alert=True)
 
 @dp.callback_query(F.data == "daily")
 async def cb_daily(c: CallbackQuery):
@@ -913,461 +968,324 @@ async def cb_daily(c: CallbackQuery):
     u = get_user(uid, c.from_user.username)
     if u["last_daily"]:
         d = datetime.now() - datetime.fromisoformat(u["last_daily"])
-        if d < timedelta(hours=DAILY_COOLDOWN_HOURS):
-            await c.answer(f"Через {fmt_time(timedelta(hours=DAILY_COOLDOWN_HOURS)-d)}", show_alert=True); return
+        if d < timedelta(hours=DAILY_CD):
+            left = timedelta(hours=DAILY_CD) - d
+            await c.answer("Через " + fmt_time(left), show_alert=True)
+            return
         streak = u["daily_streak"] + 1 if d < timedelta(hours=48) else 1
     else:
         streak = 1
     bonus = int(random.randint(300, 700) * (1 + (streak - 1) * 0.1))
-    add_balance(uid, bonus)
+    add_bal(uid, bonus)
     upd(uid, last_daily=datetime.now().isoformat(), daily_streak=streak)
-    await c.message.answer(f"🎉 Бонус: +{bonus}💰 Streak: {streak} дней", parse_mode="HTML")
+    await c.message.answer("Бонус: +" + str(bonus) + " Streak: " + str(streak))
     await c.answer("Получено!")
 
 @dp.callback_query(F.data == "quests")
 async def cb_quests(c: CallbackQuery):
-    await show_quests(c.message, c.from_user.id); await c.answer()
+    await show_quests(c.message, c.from_user.id)
+    await c.answer()
 
 @dp.callback_query(F.data == "top")
 async def cb_top(c: CallbackQuery):
-    await show_top(c.message); await c.answer()
+    await show_top(c.message)
+    await c.answer()
 
 @dp.callback_query(F.data == "stats")
 async def cb_stats(c: CallbackQuery):
-    await show_stats(c.from_user.id, c.message); await c.answer()
+    await show_stats(c.from_user.id, c.message)
+    await c.answer()
+
+@dp.callback_query(F.data == "rep")
+async def cb_rep(c: CallbackQuery):
+    await show_rep(c.from_user.id, c.message)
+    await c.answer()
+
+@dp.callback_query(F.data == "ach")
+async def cb_ach(c: CallbackQuery):
+    await show_ach(c.from_user.id, c.message)
+    await c.answer()
 
 @dp.callback_query(F.data == "craft")
 async def cb_craft(c: CallbackQuery):
     menu = craft_menu(c.from_user.id)
     if not menu:
-        await c.answer("Нужно 3 карты одной редкости", show_alert=True); return
-    await c.message.answer("⚒️ Что крафтим?", reply_markup=menu); await c.answer()
+        await c.answer("Нужно 3 карты одной редкости", show_alert=True)
+        return
+    await c.message.answer("Что крафтим?", reply_markup=menu)
+    await c.answer()
+
+@dp.callback_query(F.data.startswith("craft:"))
+async def cb_do_craft(c: CallbackQuery):
+    uid = c.from_user.id
+    src = c.data.split(":")[1]
+    inv = [r for r in get_inv(uid) if r["rarity"] == src]
+    if len(inv) < 3:
+        await c.answer("Недостаточно карт", show_alert=True)
+        return
+    for row in random.sample(inv, 3):
+        del_card(uid, row["card_name"])
+    nxt = {"common": "rare", "rare": "epic", "epic": "legendary"}[src]
+    card = random.choice(CARDS[nxt])
+    add_card(uid, card[0], nxt, "craft")
+    txt = "Крафт: " + RARITIES[nxt]["e"] + " " + card[1] + " " + card[0]
+    await c.message.answer(txt)
+    await c.answer("Готово!")
 
 @dp.callback_query(F.data == "sell")
 async def cb_sell_menu(c: CallbackQuery):
     menu = sell_menu(c.from_user.id)
     if not menu:
-        await c.answer("Нечего продавать", show_alert=True); return
-    await c.message.answer("💱 Выбери карту:", reply_markup=menu); await c.answer()
+        await c.answer("Нечего продавать", show_alert=True)
+        return
+    await c.message.answer("Выбери карту:", reply_markup=menu)
+    await c.answer()
 
 @dp.callback_query(F.data.startswith("sell:"))
 async def cb_sell(c: CallbackQuery):
-    uid = c.from_user.id; name = c.data.split(":", 1)[1]
+    uid = c.from_user.id
+    name = c.data.split(":", 1)[1]
     inv = [r for r in get_inv(uid) if r["card_name"] == name]
     if not inv:
-        await c.answer("Карта не найдена", show_alert=True); return
-    rar = inv[0]["rarity"]; price = sell_price(uid, rar)
-    del_card(uid, name); add_balance(uid, price)
-    await bump_counter(uid, "sold", 1, c.message)
-    if rar == "legendary": add_rep(uid, RP_PER_LEGENDARY_SOLD)
-    progress_quest(uid, "sell", 1)
-    await c.answer(f"Продано за {price}💰", show_alert=True)
-    if [r for r in get_inv(uid) if r["card_name"] == name]:
-        await render_card_info(c.message, uid, name)
+        await c.answer("Карта не найдена", show_alert=True)
+        return
+    rar = inv[0]["rarity"]
+    price = sell_price(uid, rar)
+    del_card(uid, name)
+    add_bal(uid, price)
+    await bump(uid, "sold", 1, c.message)
+    if rar == "legendary":
+        add_rep(uid, RP_LEG)
+    prog_quest(uid, "sell", 1)
+    await c.answer("Продано за " + str(price), show_alert=True)
+    rest = [r for r in get_inv(uid) if r["card_name"] == name]
+    if rest:
+        await render_card(c.message, uid, name)
     else:
-        await show_collection(uid, c.message)
+        await show_coll(uid, c.message)
 
 @dp.callback_query(F.data == "collect")
 async def cb_collect(c: CallbackQuery):
-    await do_collect(c.from_user.id, c.message); await c.answer()
-
-@dp.callback_query(F.data == "ach")
-async def cb_ach(c: CallbackQuery):
-    await show_achievements(c.from_user.id, c.message); await c.answer()
-
-@dp.callback_query(F.data == "rep")
-async def cb_rep(c: CallbackQuery):
-    await show_rep(c.from_user.id, c.message); await c.answer()
-
-@dp.callback_query(F.data.startswith("craft:"))
-async def cb_do_craft(c: CallbackQuery):
-    uid = c.from_user.id; src = c.data.split(":")[1]
-    inv = [r for r in get_inv(uid) if r["rarity"] == src]
-    if len(inv) < 3:
-        await c.answer("Недостаточно карт", show_alert=True); return
-    for row in random.sample(inv, 3): del_card(uid, row["card_name"])
-    nxt = {"common":"rare","rare":"epic","epic":"legendary"}[src]
-    card = random.choice(CARDS[nxt]); add_card(uid, card["name"], nxt, source="craft")
-    await c.message.answer(f"⚒️ Крафт: {RARITIES[nxt]['emoji']} {card['emoji']} {card['name']}", parse_mode="HTML")
-    await c.answer("Готово!")
+    await do_collect(c.from_user.id, c.message)
+    await c.answer()
 
 @dp.callback_query(F.data.startswith("case:"))
 async def cb_case(c: CallbackQuery):
-    await open_case(c.from_user.id, c.message, c.data.split(":")[1], c.from_user.username)
+    key = c.data.split(":")[1]
+    await open_case(c.from_user.id, c.message, key, c.from_user.username)
     await c.answer()
 
 @dp.callback_query(F.data == "games")
 async def cb_games(c: CallbackQuery):
-    await c.message.answer("🎮 <b>Игры</b>\n\nВыбирай игру:", reply_markup=games_menu(), parse_mode="HTML")
+    await c.message.answer("Игры:", reply_markup=games_menu())
     await c.answer()
 
-@dp.callback_query(F.data.startswith("help_"))
+@dp.callback_query(F.data.startswith("h:"))
 async def cb_help(c: CallbackQuery):
-    kind = c.data.split("_")[1]
-    if kind == "duel":
-        t = "⚔️ <b>Дуэли</b>\n\nОтветь на сообщение игрока:\n<code>/duel 100</code>\n\nОба открывают кейс, у кого реже — забирает банк. Кулдаун 5 мин."
-    elif kind == "roulette":
-        t = "🎰 <b>Рулетка</b>\n\n<code>/roulette 100 red</code>\nили <code>black</code>, <code>green</code>\n\n🔴⚫ x2 (47%)\n🟢 x14 (6%)"
-    elif kind == "market":
-        t = "🏪 <b>Как торговать</b>\n\n📤 /sell_market madk1d 500\n🛒 /market\n📋 /my_lots"
+    k = c.data.split(":")[1]
+    if k == "duel":
+        t = "Дуэли. Ответь на сообщение: /duel 100"
+    elif k == "roul":
+        t = "Рулетка: /roulette 100 red"
     else:
-        t = "🎲 <b>Кости</b>\n\n<code>/dice 100</code>\n\nКидаем кубики с ботом. Больше — победил x2."
-    await c.message.answer(t, parse_mode="HTML"); await c.answer()
+        t = "Кости: /dice 100"
+    await c.message.answer(t)
+    await c.answer()
 
 @dp.callback_query(F.data == "market")
 async def cb_market(c: CallbackQuery):
-    await c.message.answer("🏪 <b>Рынок</b>", reply_markup=market_menu(), parse_mode="HTML"); await c.answer()
+    await c.message.answer("Рынок:", reply_markup=market_menu())
+    await c.answer()
 
-@dp.callback_query(F.data == "market_browse")
-async def cb_market_browse(c: CallbackQuery):
+@dp.callback_query(F.data == "mkt_browse")
+async def cb_mkt_browse(c: CallbackQuery):
     clean_market()
     lots = get_lots(10)
     if not lots:
-        await c.answer("Пока лотов нет", show_alert=True); return
-    await c.message.answer("🛒 <b>Витрина</b> (свежие лоты):",
-                            reply_markup=market_browse_menu(lots), parse_mode="HTML")
+        await c.answer("Пока лотов нет", show_alert=True)
+        return
+    await c.message.answer("Витрина:", reply_markup=mkt_browse_menu(lots))
     await c.answer()
 
-@dp.callback_query(F.data == "market_my")
-async def cb_market_my(c: CallbackQuery):
-    await show_my_lots(c.message, c.from_user.id); await c.answer()
+@dp.callback_query(F.data == "mkt_my")
+async def cb_mkt_my(c: CallbackQuery):
+    await show_my_lots(c.message, c.from_user.id)
+    await c.answer()
 
-@dp.callback_query(F.data.startswith("buy_lot:"))
-async def cb_buy_lot(c: CallbackQuery):
-    uid = c.from_user.id; lot_id = int(c.data.split(":")[1])
+@dp.callback_query(F.data.startswith("buy:"))
+async def cb_buy(c: CallbackQuery):
+    uid = c.from_user.id
+    lot_id = int(c.data.split(":")[1])
     ok, res = buy_lot(uid, lot_id)
     if ok:
-        await c.answer(f"✅ Куплено: {res}", show_alert=True)
+        await c.answer("Куплено: " + res, show_alert=True)
     else:
-        await c.answer(f"❌ {res}", show_alert=True)
+        await c.answer(res, show_alert=True)
 
 @dp.callback_query(F.data == "collections")
-async def cb_collections(c: CallbackQuery):
-    await c.message.answer("📚 <b>Коллекции</b>\n\nСобери все карты редкости — получи награду!",
-                            reply_markup=collections_menu(c.from_user.id), parse_mode="HTML")
+async def cb_colls(c: CallbackQuery):
+    await c.message.answer("Коллекции:", reply_markup=colls_menu(c.from_user.id))
     await c.answer()
 
-@dp.callback_query(F.data.startswith("coll_show:"))
-async def cb_coll_show(c: CallbackQuery):
-    rar = c.data.split(":")[1]; uid = c.from_user.id
+@dp.callback_query(F.data.startswith("cs:"))
+async def cb_cs(c: CallbackQuery):
+    rar = c.data.split(":")[1]
+    uid = c.from_user.id
     info = COLLECTIONS[rar]
-    owned, total = collection_status(uid, rar)
+    o, t = coll_status(uid, rar)
     inv = get_inv(uid)
-    owned_names = set(r["card_name"] for r in inv if r["rarity"] == rar)
-    lines = [f"{RARITIES[rar]['emoji']} <b>{info['name']}</b>",
-             f"Прогресс: <b>{owned}/{total}</b>",
-             f"Награда: <b>{info['reward']}💰</b>\n"]
-    for card in CARDS[rar]:
-        mark = "✅" if card["name"] in owned_names else "⬜"
-        lines.append(f"{mark} {card['emoji']} {card['name']}")
-    ach = get_achievements(uid)
-    if ach.get(f"coll_{rar}"):
-        lines.append("\n🏆 Коллекция собрана!")
-    elif owned >= total:
-        lines.append("\n🎁 Награда готова!")
-    kb_rows = []
-    if owned >= total and not ach.get(f"coll_{rar}"):
-        kb_rows.append([InlineKeyboardButton(text=f"🎁 Забрать {info['reward']}💰", callback_data=f"coll_claim:{rar}")])
-    kb_rows.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="collections")])
-    kb = InlineKeyboardMarkup(inline_keyboard=kb_rows)
+    owned = set(r["card_name"] for r in inv if r["rarity"] == rar)
+    lines = [info["name"]]
+    lines.append("Прогресс: " + str(o) + "/" + str(t))
+    lines.append("Награда: " + str(info["reward"]))
+    lines.append("")
+    for cd in CARDS[rar]:
+        mark = "[x]" if cd[0] in owned else "[ ]"
+        lines.append(mark + " " + cd[1] + " " + cd[0])
+    a = get_ach(uid)
+    if a.get("coll_" + rar):
+        lines.append("")
+        lines.append("Коллекция собрана!")
+    elif o >= t:
+        lines.append("")
+        lines.append("Награда готова!")
+    rows = []
+    if o >= t and not a.get("coll_" + rar):
+        t2 = "Забрать " + str(info["reward"])
+        rows.append([InlineKeyboardButton(text=t2, callback_data="cc:" + rar)])
+    rows.append([InlineKeyboardButton(text="Назад", callback_data="collections")])
+    kb = InlineKeyboardMarkup(inline_keyboard=rows)
     try:
-        await c.message.edit_text("\n".join(lines), parse_mode="HTML", reply_markup=kb)
-    except:
-        await c.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=kb)
+        await c.message.edit_text("\n".join(lines), reply_markup=kb)
+    except Exception:
+        await c.message.answer("\n".join(lines), reply_markup=kb)
     await c.answer()
 
-@dp.callback_query(F.data.startswith("coll_claim:"))
-async def cb_coll_claim(c: CallbackQuery):
-    rar = c.data.split(":")[1]; uid = c.from_user.id
-    reward = claim_collection(uid, rar)
-    if reward:
-        await c.answer(f"🎉 +{reward}💰", show_alert=True)
+@dp.callback_query(F.data.startswith("cc:"))
+async def cb_cc(c: CallbackQuery):
+    rar = c.data.split(":")[1]
+    rew = claim_coll(c.from_user.id, rar)
+    if rew:
+        await c.answer("+" + str(rew), show_alert=True)
     else:
         await c.answer("Уже получено или не собрано", show_alert=True)
 
-# ---- Админ callback ----
 @dp.callback_query(F.data == "admin")
 async def cb_admin(c: CallbackQuery):
     if not is_admin(c.from_user.id):
-        await c.answer("Только для владельца", show_alert=True); return
-    await c.message.answer("👑 <b>Админ-панель</b>", reply_markup=admin_menu(), parse_mode="HTML")
+        await c.answer("Только для владельца", show_alert=True)
+        return
+    await c.message.answer("Админ-панель", reply_markup=admin_menu())
     await c.answer()
 
-@dp.callback_query(F.data == "adm_stats")
-async def cb_adm_stats(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
-    cur.execute("SELECT COUNT(*) FROM users"); users = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM inventory"); cards = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM market"); lots = cur.fetchone()[0]
-    cur.execute("SELECT SUM(balance) FROM users"); tb = cur.fetchone()[0] or 0
-    cur.execute("SELECT COUNT(*) FROM bans WHERE until > ?", (datetime.now().isoformat(),))
+@dp.callback_query(F.data == "a:stats")
+async def cb_a_stats(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
+    cur.execute("SELECT COUNT(*) FROM users")
+    users = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM inventory")
+    cards = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM market")
+    lots = cur.fetchone()[0]
+    cur.execute("SELECT SUM(balance) FROM users")
+    tb = cur.fetchone()[0] or 0
+    cur.execute("SELECT COUNT(*) FROM bans WHERE until > ?",
+                (datetime.now().isoformat(),))
     bans = cur.fetchone()[0]
+    lines = ["Статистика:"]
+    lines.append("Игроков: " + str(users))
+    lines.append("Карт: " + str(cards))
+    lines.append("Лотов: " + str(lots))
+    lines.append("Монет: " + str(tb))
+    lines.append("Забанено: " + str(bans))
     ev = active_events()
-    evt = "\n".join(f"  • {e['name']}" for e in ev) if ev else "  нет"
-    await c.message.answer(
-        f"📊 <b>Статистика</b>\n\n"
-        f"👥 Игроков: <b>{users}</b>\n"
-        f"🎴 Карт: <b>{cards}</b>\n"
-        f"🏪 Лотов: <b>{lots}</b>\n"
-        f"💰 Монет всего: <b>{tb}</b>\n"
-        f"🚫 Забанено: <b>{bans}</b>\n\n"
-        f"🔥 Активные ивенты:\n{evt}", parse_mode="HTML")
+    lines.append("Ивенты: " + (", ".join(ev) if ev else "нет"))
+    await c.message.answer("\n".join(lines))
     await c.answer()
 
-@dp.callback_query(F.data == "adm_bc")
-async def cb_adm_bc(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
-    pending[c.from_user.id] = ("broadcast", None)
-    await c.message.answer("📢 Отправь текст рассылки (или /cancel для отмены)")
+@dp.callback_query(F.data == "a:bc")
+async def cb_a_bc(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
+    pending[c.from_user.id] = "bc"
+    await c.message.answer("Отправь текст рассылки")
     await c.answer()
 
-@dp.callback_query(F.data == "adm_give_coins")
-async def cb_adm_coins(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
-    pending[c.from_user.id] = ("give_coins", None)
-    await c.message.answer("🎁 Напиши: <code>USER_ID СУММА</code>", parse_mode="HTML")
+@dp.callback_query(F.data == "a:coins")
+async def cb_a_coins(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
+    pending[c.from_user.id] = "coins"
+    await c.message.answer("Формат: USER_ID СУММА")
     await c.answer()
 
-@dp.callback_query(F.data == "adm_give_card")
-async def cb_adm_card(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
-    pending[c.from_user.id] = ("give_card", None)
-    await c.message.answer("🎴 Напиши: <code>USER_ID ИмяКарты</code>", parse_mode="HTML")
+@dp.callback_query(F.data == "a:card")
+async def cb_a_card(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
+    pending[c.from_user.id] = "card"
+    await c.message.answer("Формат: USER_ID ИмяКарты")
     await c.answer()
 
-@dp.callback_query(F.data == "adm_promo")
-async def cb_adm_promo(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
-    pending[c.from_user.id] = ("promo", None)
-    await c.message.answer("📜 Напиши: <code>КОД НАГРАДА ИСПОЛЬЗОВАНИЙ</code>", parse_mode="HTML")
+@dp.callback_query(F.data == "a:promo")
+async def cb_a_promo(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
+    pending[c.from_user.id] = "promo"
+    await c.message.answer("Формат: КОД НАГРАДА ИСПОЛЬЗОВАНИЙ")
     await c.answer()
 
-@dp.callback_query(F.data == "adm_event")
-async def cb_adm_event(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
+@dp.callback_query(F.data == "a:event")
+async def cb_a_event(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💰 x2 монеты", callback_data="adm_ev:x2_money")],
-        [InlineKeyboardButton(text="⭐ x2 XP", callback_data="adm_ev:x2_xp")],
-        [InlineKeyboardButton(text="🎖️ x2 RP", callback_data="adm_ev:x2_rep")],
-        [InlineKeyboardButton(text="❌ Отключить все", callback_data="adm_ev:off")],
+        [InlineKeyboardButton(text="x2 монеты", callback_data="ae:x2_money")],
+        [InlineKeyboardButton(text="x2 XP", callback_data="ae:x2_xp")],
+        [InlineKeyboardButton(text="x2 RP", callback_data="ae:x2_rep")],
+        [InlineKeyboardButton(text="Отключить", callback_data="ae:off")],
     ])
-    await c.message.answer("🎬 Выбери ивент на 24 часа:", reply_markup=kb)
+    await c.message.answer("Ивент на 24 часа:", reply_markup=kb)
     await c.answer()
 
-@dp.callback_query(F.data.startswith("adm_ev:"))
-async def cb_adm_ev(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
+@dp.callback_query(F.data.startswith("ae:"))
+async def cb_ae(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
     ev = c.data.split(":")[1]
     if ev == "off":
-        cur.execute("DELETE FROM events"); conn.commit()
-        await c.answer("Все ивенты отключены", show_alert=True); return
-    set_event(ev, 24)
-    await c.answer(f"✅ {ev} на 24ч", show_alert=True)
-
-@dp.callback_query(F.data == "adm_ban")
-async def cb_adm_ban(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
-    pending[c.from_user.id] = ("ban", None)
-    await c.message.answer("🚫 Напиши: <code>USER_ID ЧАСЫ</code>", parse_mode="HTML")
-    await c.answer()
-
-@dp.callback_query(F.data == "adm_unban")
-async def cb_adm_unban(c: CallbackQuery):
-    if not is_admin(c.from_user.id): return
-    pending[c.from_user.id] = ("unban", None)
-    await c.message.answer("✅ Напиши USER_ID для разбана")
-    await c.answer()
-
-@dp.callback_query(F.data.startswith("mk_help_sell:"))
-async def cb_mk_help(c: CallbackQuery):
-    name = c.data.split(":", 1)[1]
-    await c.message.answer(
-        f"📤 Чтобы выставить <b>{name}</b> на рынок:\n\n"
-        f"<code>/sell_market {name} 500</code>", parse_mode="HTML")
-    await c.answer()
-
-# ====================== ОСНОВНЫЕ ФУНКЦИИ ======================
-async def open_case(uid, message, case_key, username=""):
-    case = CASES[case_key]
-    u = get_user(uid, username)
-    if u["balance"] < case["price"]:
-        await message.answer(f"❌ Нужно {case['price']}💰, у тебя {u['balance']}💰"); return
-    add_balance(uid, -case["price"])
-    boosters = get_boosters(uid)
-    msg = await message.answer(f"{case['emoji']} Открываем...")
-    await asyncio.sleep(1); await msg.edit_text(f"{case['emoji']} Открываем... 🔄")
-    await asyncio.sleep(1); await msg.edit_text(f"{case['emoji']} Открываем... ✨")
-    await asyncio.sleep(1)
-    if boosters.get("guaranteed_rare"):
-        rar = random.choices(["rare", "epic", "legendary"], weights=[70, 25, 5], k=1)[0]
-        card = random.choice(CARDS[rar]); boosters.pop("guaranteed_rare")
-    else:
-        rar, card = roll_card(case_key)
-    set_boosters(uid, boosters)
-    add_card(uid, card["name"], rar, source="case")
-    add_rep(uid, RP_PER_CASE)
-    await give_xp(uid, XP_PER_CASE)
-    progress_quest(uid, "case", 1)
-    await bump_counter(uid, "cases", 1)
-    if rar == "legendary": await bump_counter(uid, "legendary", 1)
-    new_u = get_user(uid)
-    caption = (
-        f"🎉 Выпала карта!\n\n"
-        f"{RARITIES[rar]['emoji']} {card['emoji']} {card['name']}\n"
-        f"Редкость: {RARITIES[rar]['name']}\n\n"
-        f"📖 {card['desc']}\n\n"
-        f"💰 Баланс: {new_u['balance']}\n"
-        f"⭐ {new_u['xp']}/{xp_needed(new_u['level'])} XP\n"
-        f"🎖️ +{RP_PER_CASE} RP"
-    )
-    try: await msg.delete()
-    except: pass
-    await message.answer(caption, parse_mode="HTML", reply_markup=main_menu(uid))
-    await check_achievements(uid, message)
-
-async def do_collect(uid, message):
-    u = get_user(uid)
-    if not u["last_collect"]:
-        upd(uid, last_collect=datetime.now().isoformat())
-        rate = calc_passive_rate(uid)
-        await message.answer(f"💵 Доход запущен! {rate}💰/час.", parse_mode="HTML"); return
-    last = datetime.fromisoformat(u["last_collect"])
-    hours = (datetime.now() - last).total_seconds() / 3600
-    if hours < COLLECT_COOLDOWN_HOURS:
-        rem = timedelta(hours=COLLECT_COOLDOWN_HOURS) - timedelta(hours=hours)
-        await message.answer(f"⏳ Сбор через: {fmt_time(rem)}", parse_mode="HTML"); return
-    hours = min(hours, 24)
-    rate = calc_passive_rate(uid)
-    earned = int(rate * hours)
-    if earned == 0:
-        await message.answer("💸 У тебя нет карт."); return
-    add_balance(uid, earned)
-    upd(uid, last_collect=datetime.now().isoformat())
-    await message.answer(f"💵 +{earned}💰 ({rate}💰/час, {hours:.1f}ч)", parse_mode="HTML")
-
-async def show_collection(uid, message):
-    menu = collection_menu(uid)
-    if not menu:
-        text = "🎒 <b>Коллекция пуста.</b>\nОткрой кейс, чтобы получить карту!"
-        try: await message.edit_text(text, parse_mode="HTML")
-        except: await message.answer(text, parse_mode="HTML")
+        cur.execute("DELETE FROM events")
+        conn.commit()
+        await c.answer("Ивенты отключены", show_alert=True)
         return
-    inv = get_inv(uid); rate = calc_passive_rate(uid)
-    text = (f"🎒 <b>Коллекция</b>\n"
-            f"Карт: <b>{len(inv)}</b>\n"
-            f"💵 Доход: <b>{rate}💰/час</b>\n\n"
-            f"Нажми на карту для инфо:")
-    try: await message.edit_text(text, parse_mode="HTML", reply_markup=menu)
-    except: await message.answer(text, parse_mode="HTML", reply_markup=menu)
+    set_event(ev, 24)
+    await c.answer(ev + " на 24ч", show_alert=True)
 
-async def render_card_info(message, uid, name):
-    rarity, cd = find_card(name)
-    if not cd: return False
-    inv = get_inv(uid)
-    count = sum(1 for r in inv if r["card_name"] == name)
-    if count == 0: return False
-    price = sell_price(uid, rarity)
-    text = (
-        f"{RARITIES[rarity]['emoji']} <b>{cd['emoji']} {cd['name']}</b>\n\n"
-        f"Редкость: <b>{RARITIES[rarity]['name']}</b>\n"
-        f"В коллекции: <b>{count} шт.</b>\n"
-        f"💰 Цена: <b>{price}</b>\n"
-        f"💵 Пассив: {RARITIES[rarity]['passive']}💰/час\n\n"
-        f"📖 <i>{cd['desc']}</i>"
-    )
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"💱 Продать за {price}💰", callback_data=f"sell:{name}")],
-        [InlineKeyboardButton(text="📤 На рынок", callback_data=f"mk_help_sell:{name}")],
-        [InlineKeyboardButton(text="⬅️ К коллекции", callback_data="inv")],
-    ])
-    try: await message.edit_text(text, parse_mode="HTML", reply_markup=kb)
-    except: await message.answer(text, parse_mode="HTML", reply_markup=kb)
-    return True
+@dp.callback_query(F.data == "a:ban")
+async def cb_a_ban(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
+    pending[c.from_user.id] = "ban"
+    await c.message.answer("Формат: USER_ID ЧАСЫ")
+    await c.answer()
 
-async def show_my_lots(message, uid):
-    clean_market()
-    lots = get_my_lots(uid)
-    if not lots:
-        await message.answer("📤 У тебя нет лотов."); return
-    lines = ["📋 <b>Мои лоты:</b>\n"]
-    for lot in lots:
-        e = RARITIES[lot["rarity"]]["emoji"]
-        lines.append(f"{e} {lot['card_name']} — {lot['price']}💰")
-    await message.answer("\n".join(lines), parse_mode="HTML")
+@dp.callback_query(F.data == "a:unban")
+async def cb_a_unban(c: CallbackQuery):
+    if not is_admin(c.from_user.id):
+        return
+    pending[c.from_user.id] = "unban"
+    await c.message.answer("USER_ID для разбана")
+    await c.answer()
 
-async def show_market(message):
-    clean_market()
-    lots = get_lots(10)
-    if not lots:
-        await message.answer("🛒 Пока никто ничего не продаёт."); return
-    await message.answer("🛒 <b>Витрина:</b>", reply_markup=market_browse_menu(lots), parse_mode="HTML")
+@dp.callback_query(F.data.startswith("mkh:"))
+async def cb_mkh(c: CallbackQuery):
+    name = c.data.split(":", 1)[1]
+    t = "Чтобы выставить " + name + " на рынок:"
+    t += "\n\n/sell_market " + name + " 500"
+    await c.message.answer(t)
+    await c.answer()
 
-async def show_top(message):
-    cur.execute("SELECT username, user_id, balance, level, reputation FROM users ORDER BY balance DESC LIMIT 10")
-    rows = cur.fetchall()
-    if not rows:
-        await message.answer("Пока пусто."); return
-    lines = ["🏆 Топ-10:\n"]
-    for i, r in enumerate(rows, 1):
-        name = r["username"] or f"id{r['user_id']}"
-        rep = f" 🎖️{r['reputation']}" if r["reputation"] else ""
-        lines.append(f"{i}. {name} — {r['balance']}💰 (ур.{r['level']}{rep})")
-    await message.answer("\n".join(lines), parse_mode="HTML")
-
-async def show_quests(message, uid):
-    data = get_quests(uid)
-    lines = ["📋 Ежедневные:\n"]
-    for q in QUEST_TEMPLATES:
-        done = data.get(q["id"], 0)
-        mark = "✅" if done >= q["goal"] else "⏳"
-        lines.append(f"{mark} {q['text']} — {done}/{q['goal']} (+{q['reward']}💰)")
-    lines.append("\n💰 /claim — забрать")
-    await message.answer("\n".join(lines), parse_mode="HTML")
-
-async def show_achievements(uid, message):
-    ach = get_achievements(uid)
-    lines = ["🏅 Достижения:\n"]
-    for a in ACHIEVEMENTS:
-        mark = "✅" if ach.get(a["id"]) else "🔒"
-        lines.append(f"{mark} {a['text']} (+{a['reward']}💰)")
-    await message.answer("\n".join(lines), parse_mode="HTML")
-
-async def show_rep(uid, message):
-    rp = get_rep(uid)
-    sm = rep_sell_multiplier(rp); pm = rep_passive_multiplier(rp)
-    nxt = (rp // RP_STEP + 1) * RP_STEP
-    lines = [f"🎖️ Репутация: {rp} RP", f"🏅 {rank_for(rp)}\n",
-             f"💱 Продажа: +{(sm-1)*100:.0f}%", f"💵 Пассив: +{(pm-1)*100:.0f}%\n",
-             f"📈 До бонуса: {nxt - rp} RP"]
-    await message.answer("\n".join(lines), parse_mode="HTML")
-
-async def show_stats(uid, message):
-    u = get_user(uid); c = get_counters(uid)
-    inv = get_inv(uid)
-    unique = len(set(r["card_name"] for r in inv))
-    await message.answer(
-        f"📊 <b>Статистика</b>\n\n"
-        f"⭐ Ур. {u['level']}  🎖️ RP {u['reputation']}\n"
-        f"💰 Баланс: {u['balance']}\n\n"
-        f"📦 Кейсов: {c.get('cases', 0)}\n"
-        f"💱 Продано: {c.get('sold', 0)}\n"
-        f"⚔️ Побед в дуэлях: {c.get('duel_wins', 0)}\n"
-        f"🏪 Продано на рынке: {c.get('market_sold', 0)}\n"
-        f"🎒 Коллекция: {len(inv)} (уникальных: {unique})", parse_mode="HTML")
-
-async def show_history(uid, message):
-    rows = get_history(uid, 10)
-    if not rows:
-        await message.answer("📜 История пуста."); return
-    lines = ["📜 <b>Последние 10 карт:</b>\n"]
-    for r in rows:
-        e = RARITIES[r["rarity"]]["emoji"]
-        src = {"case": "📦", "craft": "⚒️", "market_buy": "🛒",
-               "market_return": "↩️", "duel": "⚔️", "admin": "👑"}.get(r["source"], "?")
-        lines.append(f"{src} {e} {r['card_name']}")
-    await message.answer("\n".join(lines), parse_mode="HTML")
-
-# ====================== REPLY-КНОПКИ ХЕНДЛЕРЫ ======================
 @dp.message(F.text == "📦 Кейсы")
 async def rb_cases(m: Message):
     await m.answer("Выбери кейс:", reply_markup=cases_menu())
@@ -1375,24 +1293,26 @@ async def rb_cases(m: Message):
 @dp.message(F.text == "🎒 Коллекция")
 async def rb_inv(m: Message):
     get_user(m.from_user.id, m.from_user.username)
-    await show_collection(m.from_user.id, m)
+    await show_coll(m.from_user.id, m)
 
 @dp.message(F.text == "💰 Баланс")
-async def rb_balance(m: Message):
+async def rb_bal(m: Message):
     u = get_user(m.from_user.id, m.from_user.username)
-    await m.answer(
-        f"💰 Баланс: {u['balance']}\n"
-        f"⭐ Ур. {u['level']}\n"
-        f"XP: {u['xp']}/{xp_needed(u['level'])}\n"
-        f"🎖️ RP: {u['reputation']} — {rank_for(u['reputation'])}", parse_mode="HTML")
+    lines = ["Баланс: " + str(u["balance"])]
+    lines.append("Уровень: " + str(u["level"]))
+    lines.append("XP: " + str(u["xp"]) + "/" + str(xp_need(u["level"])))
+    lines.append("Репутация: " + str(u["reputation"]))
+    lines.append("Звание: " + rank_for(u["reputation"]))
+    await m.answer("\n".join(lines))
 
 @dp.message(F.text == "💱 Продать")
 async def rb_sell(m: Message):
     get_user(m.from_user.id, m.from_user.username)
     menu = sell_menu(m.from_user.id)
     if not menu:
-        await m.answer("🎒 Нечего продавать."); return
-    await m.answer("💱 Выбери карту:", reply_markup=menu)
+        await m.answer("Нечего продавать")
+        return
+    await m.answer("Выбери карту:", reply_markup=menu)
 
 @dp.message(F.text == "💵 Собрать")
 async def rb_collect(m: Message):
@@ -1404,34 +1324,35 @@ async def rb_daily(m: Message):
     u = get_user(uid, m.from_user.username)
     if u["last_daily"]:
         d = datetime.now() - datetime.fromisoformat(u["last_daily"])
-        if d < timedelta(hours=DAILY_COOLDOWN_HOURS):
-            await m.answer(f"⏳ Через {fmt_time(timedelta(hours=DAILY_COOLDOWN_HOURS)-d)}")
+        if d < timedelta(hours=DAILY_CD):
+            left = timedelta(hours=DAILY_CD) - d
+            await m.answer("Через " + fmt_time(left))
             return
         streak = u["daily_streak"] + 1 if d < timedelta(hours=48) else 1
     else:
         streak = 1
     bonus = int(random.randint(300, 700) * (1 + (streak - 1) * 0.1))
-    add_balance(uid, bonus)
+    add_bal(uid, bonus)
     upd(uid, last_daily=datetime.now().isoformat(), daily_streak=streak)
-    await m.answer(f"🎉 Бонус: +{bonus}💰 Streak: {streak} дней", parse_mode="HTML")
+    await m.answer("Бонус: +" + str(bonus) + " Streak: " + str(streak))
 
 @dp.message(F.text == "🎮 Игры")
 async def rb_games(m: Message):
-    await m.answer("🎮 <b>Игры</b>\n\nВыбирай:", reply_markup=games_menu(), parse_mode="HTML")
+    await m.answer("Игры:", reply_markup=games_menu())
 
 @dp.message(F.text == "🏪 Рынок")
 async def rb_market(m: Message):
-    await m.answer("🏪 <b>Рынок</b>", reply_markup=market_menu(), parse_mode="HTML")
+    await m.answer("Рынок:", reply_markup=market_menu())
 
 @dp.message(F.text == "📚 Коллекции")
-async def rb_collections(m: Message):
-    await m.answer("📚 <b>Коллекции</b>", reply_markup=collections_menu(m.from_user.id), parse_mode="HTML")
+async def rb_colls(m: Message):
+    await m.answer("Коллекции:", reply_markup=colls_menu(m.from_user.id))
 
 @dp.message(F.text == "🏆 Топ")
 async def rb_top(m: Message):
     await show_top(m)
 
-@dp.message(F.text == "🎖️ Репутация")
+@dp.message(F.text == "🎖 Репутация")
 async def rb_rep(m: Message):
     await show_rep(m.from_user.id, m)
 
@@ -1445,109 +1366,342 @@ async def rb_quests(m: Message):
 
 @dp.message(F.text == "🏅 Достижения")
 async def rb_ach(m: Message):
-    await show_achievements(m.from_user.id, m)
+    await show_ach(m.from_user.id, m)
 
-@dp.message(F.text == "⚒️ Крафт")
+@dp.message(F.text == "⚒ Крафт")
 async def rb_craft(m: Message):
     menu = craft_menu(m.from_user.id)
     if not menu:
-        await m.answer("Нужно 3 карты одной редкости"); return
-    await m.answer("⚒️ Что крафтим?", reply_markup=menu)
+        await m.answer("Нужно 3 карты одной редкости")
+        return
+    await m.answer("Что крафтим?", reply_markup=menu)
 
 @dp.message(F.text == "❓ Помощь")
 async def rb_help(m: Message):
-    await m.answer(
-        "❓ <b>Помощь</b>\n\n"
-        "📦 Кейсы — открывай карты\n"
-        "🎒 Коллекция — все твои карты\n"
-        "💱 Продать — продать карту\n"
-        "💵 Собрать — пассивный доход\n"
-        "🎮 Игры — дуэли, рулетка, кости\n"
-        "🏪 Рынок — торговля с игроками\n"
-        "📚 Коллекции — собери все карты\n"
-        "⚒️ Крафт — 3 карты → 1 выше\n\n"
-        "<b>Команды:</b>\n"
-        "/duel, /roulette, /dice\n"
-        "/sell_market, /market\n"
-        "/promo КОД\n"
-        "/find ИМЯ\n"
-        "/history", parse_mode="HTML")
+    lines = ["Помощь:"]
+    lines.append("Кейсы, Коллекция, Продажа - кнопки меню")
+    lines.append("Игры:")
+    lines.append("/duel 100 - ответить на сообщение")
+    lines.append("/roulette 100 red")
+    lines.append("/dice 100")
+    lines.append("Рынок:")
+    lines.append("/sell_market Имя Цена")
+    lines.append("/market - витрина")
+    lines.append("/my_lots - мои лоты")
+    lines.append("Прочее:")
+    lines.append("/find ИМЯ - поиск карты")
+    lines.append("/history - последние карты")
+    lines.append("/promo КОД")
+    lines.append("/claim - забрать награды")
+    await m.answer("\n".join(lines))
 
 @dp.message(F.text == "👑 Админ-панель")
 async def rb_admin(m: Message):
     if not is_admin(m.from_user.id):
-        await m.answer("👑 Только для владельца"); return
-    await m.answer("👑 <b>Админ-панель</b>", reply_markup=admin_menu(), parse_mode="HTML")
+        await m.answer("Только для владельца")
+        return
+    await m.answer("Админ-панель", reply_markup=admin_menu())
 
-# ====================== FALLBACK ДЛЯ PENDING ======================
 @dp.message()
-async def handle_pending(m: Message):
+async def fallback(m: Message):
     uid = m.from_user.id
     if uid not in pending:
         return
     if not is_admin(uid):
-        pending.pop(uid, None); return
-    if not m.text: return
-    action, _ = pending.pop(uid)
+        pending.pop(uid, None)
+        return
+    if not m.text:
+        return
+    act = pending.pop(uid)
     text = m.text.strip()
-
-    if action == "broadcast":
+    if act == "bc":
         cur.execute("SELECT user_id FROM users")
         users = [r["user_id"] for r in cur.fetchall()]
-        ok, fail = 0, 0
+        ok = 0
+        fail = 0
         for u in users:
             try:
-                await bot.send_message(u, text); ok += 1
-            except: fail += 1
+                await bot.send_message(u, text)
+                ok += 1
+            except Exception:
+                fail += 1
             await asyncio.sleep(0.05)
-        await m.answer(f"✅ Доставлено: {ok}, ошибок: {fail}")
-
-    elif action == "give_coins":
-        p = text.split()
-        if len(p) != 2 or not all(x.lstrip("-").isdigit() for x in p):
-            await m.answer("❌ Формат: USER_ID СУММА"); return
-        t, amt = int(p[0]), int(p[1])
-        add_balance(t, amt)
-        await m.answer(f"✅ Выдано {amt}💰 юзеру {t}")
-        try: await bot.send_message(t, f"🎁 Владелец выдал тебе +{amt}💰")
-        except: pass
-
-    elif action == "give_card":
-        p = text.rsplit(" ", 1)
-        if len(p) != 2 or not p[0].isdigit():
-            await m.answer("❌ Формат: USER_ID ИмяКарты"); return
-        t = int(p[0]); name = p[1]
+        await m.answer("Доставлено: " + str(ok) + " ошибок: " + str(fail))
+    elif act == "coins":
+        parts = text.split()
+        if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+            await m.answer("Формат: USER_ID СУММА")
+            return
+        t = int(parts[0])
+        amt = int(parts[1])
+        add_bal(t, amt)
+        await m.answer("Выдано " + str(amt) + " юзеру " + str(t))
+        try:
+            await bot.send_message(t, "Владелец выдал +" + str(amt))
+        except Exception:
+            pass
+    elif act == "card":
+        parts = text.rsplit(" ", 1)
+        if len(parts) != 2 or not parts[0].isdigit():
+            await m.answer("Формат: USER_ID ИмяКарты")
+            return
+        t = int(parts[0])
+        name = parts[1]
         rar, cd = find_card(name)
         if not cd:
-            await m.answer("❌ Карта не найдена"); return
-        add_card(t, name, rar, source="admin")
-        await m.answer(f"✅ Выдана {cd['emoji']} {name} юзеру {t}")
-        try: await bot.send_message(t, f"🎁 Владелец выдал тебе карту: {cd['emoji']} {name}")
-        except: pass
-
-    elif action == "promo":
-        p = text.split()
-        if len(p) != 3 or not p[1].isdigit() or not p[2].isdigit():
-            await m.answer("❌ Формат: КОД НАГРАДА ИСПОЛЬЗОВАНИЙ"); return
-        if add_promo(p[0], int(p[1]), int(p[2])):
-            await m.answer(f"✅ Промокод {p[0]} на {p[1]}💰 ×{p[2]}")
+            await m.answer("Карта не найдена")
+            return
+        add_card(t, name, rar, "admin")
+        await m.answer("Выдана " + cd[1] + " " + name)
+        try:
+            await bot.send_message(t, "Владелец выдал карту: " + cd[1] + " " + name)
+        except Exception:
+            pass
+    elif act == "promo":
+        parts = text.split()
+        if len(parts) != 3 or not parts[1].isdigit() or not parts[2].isdigit():
+            await m.answer("Формат: КОД НАГРАДА ИСПОЛЬЗОВАНИЙ")
+            return
+        if add_promo(parts[0], int(parts[1]), int(parts[2])):
+            await m.answer("Промокод " + parts[0] + " создан")
         else:
-            await m.answer("❌ Такой код уже есть")
-
-    elif action == "ban":
-        p = text.split()
-        if len(p) != 2 or not all(x.isdigit() for x in p):
-            await m.answer("❌ Формат: USER_ID ЧАСЫ"); return
-        ban_user(int(p[0]), int(p[1]))
-        await m.answer(f"🚫 Забанен {p[0]} на {p[1]}ч")
-
-    elif action == "unban":
+            await m.answer("Такой код уже есть")
+    elif act == "ban":
+        parts = text.split()
+        if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+            await m.answer("Формат: USER_ID ЧАСЫ")
+            return
+        ban_user(int(parts[0]), int(parts[1]))
+        await m.answer("Забанен " + parts[0] + " на " + parts[1] + "ч")
+    elif act == "unban":
         if not text.isdigit():
-            await m.answer("❌ USER_ID должен быть числом"); return
+            await m.answer("USER_ID должен быть числом")
+            return
         unban_user(int(text))
-        await m.answer(f"✅ Разбанен {text}")
+        await m.answer("Разбанен " + text)
 
-# ====================== ЗАПУСК ======================
+async def open_case(uid, message, case_key, username=""):
+    case = CASES[case_key]
+    u = get_user(uid, username)
+    if u["balance"] < case["price"]:
+        t = "Нужно " + str(case["price"])
+        t += " у тебя " + str(u["balance"])
+        await message.answer(t)
+        return
+    add_bal(uid, -case["price"])
+    boosters = get_boosters(uid)
+    msg = await message.answer(case["emoji"] + " Открываем...")
+    await asyncio.sleep(1)
+    await msg.edit_text(case["emoji"] + " Открываем... x")
+    await asyncio.sleep(1)
+    await msg.edit_text(case["emoji"] + " Открываем... xx")
+    await asyncio.sleep(1)
+    if boosters.get("guaranteed_rare"):
+        rar = random.choices(["rare", "epic", "legendary"],
+                             weights=[70, 25, 5], k=1)[0]
+        card = random.choice(CARDS[rar])
+        boosters.pop("guaranteed_rare")
+    else:
+        rar, card = roll_card(case_key)
+    set_boosters(uid, boosters)
+    add_card(uid, card[0], rar, "case")
+    add_rep(uid, RP_CASE)
+    await give_xp(uid, XP_PER_CASE)
+    prog_quest(uid, "case", 1)
+    await bump(uid, "cases", 1)
+    if rar == "legendary":
+        await bump(uid, "legendary", 1)
+    new_u = get_user(uid)
+    lines = ["Выпала карта!", ""]
+    e = RARITIES[rar]["e"]
+    lines.append(e + " " + card[1] + " " + card[0])
+    lines.append("Редкость: " + RARITIES[rar]["name"])
+    lines.append("")
+    lines.append(card[2])
+    lines.append("")
+    lines.append("Баланс: " + str(new_u["balance"]))
+    lines.append("XP: " + str(new_u["xp"]) + "/" + str(xp_need(new_u["level"])))
+    lines.append("RP: +" + str(RP_CASE))
+    try:
+        await msg.delete()
+    except Exception:
+        pass
+    await message.answer("\n".join(lines),
+                         reply_markup=inline_menu(uid))
+    await check_ach(uid, message)
+
+async def do_collect(uid, message):
+    u = get_user(uid)
+    if not u["last_collect"]:
+        upd(uid, last_collect=datetime.now().isoformat())
+        rate = pas_rate(uid)
+        await message.answer("Доход запущен. " + str(rate) + " в час")
+        return
+    last = datetime.fromisoformat(u["last_collect"])
+    hours = (datetime.now() - last).total_seconds() / 3600
+    if hours < COLLECT_CD:
+        left = timedelta(hours=COLLECT_CD) - timedelta(hours=hours)
+        await message.answer("Сбор через " + fmt_time(left))
+        return
+    hours = min(hours, 24)
+    rate = pas_rate(uid)
+    earned = int(rate * hours)
+    if earned == 0:
+        await message.answer("Нет карт")
+        return
+    add_bal(uid, earned)
+    upd(uid, last_collect=datetime.now().isoformat())
+    t = "Собрано +" + str(earned)
+    t += " (" + str(rate) + "/час)"
+    await message.answer(t)
+
+async def show_coll(uid, message):
+    menu = coll_menu(uid)
+    if not menu:
+        text = "Коллекция пуста"
+        try:
+            await message.edit_text(text)
+        except Exception:
+            await message.answer(text)
+        return
+    inv = get_inv(uid)
+    rate = pas_rate(uid)
+    lines = ["Коллекция"]
+    lines.append("Карт: " + str(len(inv)))
+    lines.append("Доход: " + str(rate) + "/час")
+    lines.append("")
+    lines.append("Нажми на карту:")
+    try:
+        await message.edit_text("\n".join(lines), reply_markup=menu)
+    except Exception:
+        await message.answer("\n".join(lines), reply_markup=menu)
+
+async def render_card(message, uid, name):
+    rar, cd = find_card(name)
+    if not cd:
+        return False
+    inv = get_inv(uid)
+    cnt = sum(1 for r in inv if r["card_name"] == name)
+    if cnt == 0:
+        return False
+    price = sell_price(uid, rar)
+    lines = [RARITIES[rar]["e"] + " " + cd[1] + " " + cd[0]]
+    lines.append("")
+    lines.append("Редкость: " + RARITIES[rar]["name"])
+    lines.append("В коллекции: " + str(cnt))
+    lines.append("Цена продажи: " + str(price))
+    lines.append("Пассив: " + str(RARITIES[rar]["pas"]) + "/час")
+    lines.append("")
+    lines.append(cd[2])
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Продать за " + str(price),
+                              callback_data="sell:" + name)],
+        [InlineKeyboardButton(text="На рынок",
+                              callback_data="mkh:" + name)],
+        [InlineKeyboardButton(text="К коллекции", callback_data="inv")],
+    ])
+    text = "\n".join(lines)
+    try:
+        await message.edit_text(text, reply_markup=kb)
+    except Exception:
+        await message.answer(text, reply_markup=kb)
+    return True
+
+async def show_my_lots(message, uid):
+    clean_market()
+    lots = get_my_lots(uid)
+    if not lots:
+        await message.answer("Нет лотов")
+        return
+    lines = ["Мои лоты:"]
+    for lot in lots:
+        e = RARITIES[lot["rarity"]]["e"]
+        lines.append(e + " " + lot["card_name"] + " - " + str(lot["price"]))
+    await message.answer("\n".join(lines))
+
+async def show_top(message):
+    cur.execute("SELECT username,user_id,balance,level,reputation FROM users ORDER BY balance DESC LIMIT 10")
+    rows = cur.fetchall()
+    if not rows:
+        await message.answer("Пусто")
+        return
+    lines = ["Топ-10:"]
+    for i, r in enumerate(rows, 1):
+        name = r["username"] or ("id" + str(r["user_id"]))
+        rep = " RP" + str(r["reputation"]) if r["reputation"] else ""
+        line = str(i) + ". " + name + " - " + str(r["balance"])
+        line += " (ур." + str(r["level"]) + rep + ")"
+        lines.append(line)
+    await message.answer("\n".join(lines))
+
+async def show_quests(message, uid):
+    d = get_quests(uid)
+    lines = ["Ежедневные:"]
+    for qid, text, goal, rew, t in QUESTS:
+        done = d.get(qid, 0)
+        mark = "[x]" if done >= goal else "[ ]"
+        line = mark + " " + text + " " + str(done) + "/" + str(goal)
+        line += " +" + str(rew)
+        lines.append(line)
+    lines.append("")
+    lines.append("/claim - забрать")
+    await message.answer("\n".join(lines))
+
+async def show_ach(uid, message):
+    a = get_ach(uid)
+    lines = ["Достижения:"]
+    for aid, text, rew, key, thr in ACHIEVEMENTS:
+        mark = "[x]" if a.get(aid) else "[ ]"
+        line = mark + " " + text + " +" + str(rew)
+        lines.append(line)
+    await message.answer("\n".join(lines))
+
+async def show_rep(uid, message):
+    rp = get_rep(uid)
+    sm = rep_sell_mult(rp)
+    pm = rep_pas_mult(rp)
+    nxt = (rp // RP_STEP + 1) * RP_STEP
+    lines = ["Репутация: " + str(rp)]
+    lines.append("Звание: " + rank_for(rp))
+    lines.append("")
+    lines.append("Продажа: +" + str(int((sm - 1) * 100)) + "%")
+    lines.append("Пассив: +" + str(int((pm - 1) * 100)) + "%")
+    lines.append("До бонуса: " + str(nxt - rp))
+    await message.answer("\n".join(lines))
+
+async def show_stats(uid, message):
+    u = get_user(uid)
+    c = get_cnt(uid)
+    inv = get_inv(uid)
+    uniq = len(set(r["card_name"] for r in inv))
+    lines = ["Статистика"]
+    lines.append("Ур. " + str(u["level"]) + " RP " + str(u["reputation"]))
+    lines.append("Баланс: " + str(u["balance"]))
+    lines.append("")
+    lines.append("Кейсов: " + str(c.get("cases", 0)))
+    lines.append("Продано: " + str(c.get("sold", 0)))
+    lines.append("Побед в дуэлях: " + str(c.get("duel_wins", 0)))
+    lines.append("Продано на рынке: " + str(c.get("market_sold", 0)))
+    line = "Коллекция: " + str(len(inv))
+    line += " уникальных: " + str(uniq)
+    lines.append(line)
+    await message.answer("\n".join(lines))
+
+async def show_history(uid, message):
+    rows = get_history(uid, 10)
+    if not rows:
+        await message.answer("История пуста")
+        return
+    src_map = {"case": "кейс", "craft": "крафт",
+               "market_buy": "рынок", "market_return": "возврат",
+               "duel": "дуэль", "admin": "админ"}
+    lines = ["Последние 10 карт:"]
+    for r in rows:
+        e = RARITIES[r["rarity"]]["e"]
+        s = src_map.get(r["source"], r["source"])
+        lines.append(e + " " + r["card_name"] + " (" + s + ")")
+    await message.answer("\n".join(lines))
+
 async def main():
     print("Бот запущен...")
     await dp.start_polling(bot)
